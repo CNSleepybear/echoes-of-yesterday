@@ -1,0 +1,2158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昨日回响：肉鸽轮回 </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Share+Tech+Mono&family=Cinzel:wght@400;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; color: #fff; font-family: 'Noto Serif SC', serif; overflow: hidden; user-select: none; }
+        #game-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #render-canvas { width: 100%; height: 100%; }
+
+        .scanlines::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.2) 0px, rgba(0,0,0,0.2) 1px, transparent 1px, transparent 2px); pointer-events: none; z-index: 10; }
+        .crt-curve::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(ellipse at center, transparent 0%, transparent 60%, rgba(0,0,0,0.8) 100%); pointer-events: none; z-index: 11; }
+        .vignette::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.4) 100%); pointer-events: none; z-index: 12; }
+        .film-grain { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 13; opacity: 0.08; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"); }
+
+        #ui-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto; background: #000; }
+        .screen.active { display: flex; }
+
+        #loading-screen { z-index: 100; font-family: 'Share Tech Mono', monospace; }
+        .loading-text { font-size: 14px; color: #8b4513; margin-bottom: 20px; letter-spacing: 2px; animation: blink 1s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .loading-bar { width: 300px; height: 4px; background: #1a1a1a; border: 1px solid #333; overflow: hidden; }
+        .loading-progress { height: 100%; background: linear-gradient(90deg, #8b4513, #cd853f); width: 0%; transition: width 0.3s; }
+
+        #warning-screen { z-index: 99; }
+        .warning-title { font-family: 'Cinzel', serif; font-size: 28px; color: #8b0000; margin-bottom: 30px; letter-spacing: 6px; text-shadow: 0 0 20px rgba(139, 0, 0, 0.5); }
+        .warning-text { max-width: 650px; font-size: 14px; line-height: 2; color: #888; text-align: center; margin-bottom: 40px; padding: 0 20px; }
+        .warning-button { font-family: 'Share Tech Mono', monospace; padding: 15px 40px; background: transparent; border: 1px solid #8b4513; color: #8b4513; cursor: pointer; letter-spacing: 2px; transition: all 0.3s; pointer-events: auto; }
+        .warning-button:hover { background: #8b4513; color: #000; box-shadow: 0 0 20px rgba(139, 69, 19, 0.4); }
+
+        #menu-screen { background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%); z-index: 98; }
+        .menu-title { font-family: 'Cinzel', serif; font-size: 56px; color: #8b4513; margin-bottom: 10px; text-shadow: 0 0 30px rgba(139, 69, 19, 0.6); letter-spacing: 12px; animation: titlePulse 4s infinite; }
+        @keyframes titlePulse { 0%, 100% { text-shadow: 0 0 20px rgba(139, 69, 19, 0.5); } 50% { text-shadow: 0 0 40px rgba(139, 69, 19, 0.9), 0 0 60px rgba(139, 0, 0, 0.4); } }
+        .menu-subtitle { font-size: 14px; color: #666; margin-bottom: 20px; letter-spacing: 4px; font-family: 'Share Tech Mono';}
+        .rogue-badge { font-family: 'Share Tech Mono'; font-size: 11px; color: #4a0080; border: 1px solid #4a0080; padding: 5px 15px; margin-bottom: 40px; letter-spacing: 3px; background: rgba(74, 0, 128, 0.1); }
+        .menu-options { display: flex; flex-direction: column; gap: 20px; }
+        .menu-option { font-family: 'Share Tech Mono', monospace; font-size: 16px; color: #888; cursor: pointer; padding: 12px 35px; border: 1px solid transparent; transition: all 0.3s; text-align: center; letter-spacing: 2px; position: relative; overflow: hidden; }
+        .menu-option::before { content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 0; background: rgba(139, 69, 19, 0.2); transition: width 0.3s; }
+        .menu-option:hover { color: #8b4513; border-color: #8b4513; }
+        .menu-option:hover::before { width: 100%; }
+        .menu-option.disabled { color: #444; cursor: default; pointer-events: none; }
+
+        .rogue-stats { display: flex; gap: 30px; margin-bottom: 30px; font-family: 'Share Tech Mono'; font-size: 11px; color: #666; flex-wrap: wrap; justify-content: center; }
+        .rogue-stat { text-align: center; padding: 10px 20px; border: 1px solid #333; background: rgba(0,0,0,0.5); }
+        .rogue-stat-value { font-size: 18px; color: #8b4513; margin-top: 5px; }
+        .rogue-stat-label { font-size: 10px; color: #555; margin-top: 3px; }
+
+        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 20px; display: none; font-family: 'Share Tech Mono', monospace; }
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; text-shadow: 0 0 5px rgba(0,0,0,0.8); }
+        .resource-bar { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
+        .resource-label { font-size: 11px; color: #666; letter-spacing: 2px; display: flex; justify-content: space-between; }
+        .resource-track { width: 150px; height: 6px; background: rgba(0,0,0,0.5); border: 1px solid #333; overflow: hidden; position: relative; }
+        .resource-track::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(90deg, transparent, transparent 9px, rgba(0,0,0,0.3) 9px, rgba(0,0,0,0.3) 10px); }
+        .resource-fill { height: 100%; transition: width 0.5s, background-color 0.5s; }
+        .sanity-fill { background: linear-gradient(90deg, #8b0000, #cd853f); box-shadow: 0 0 5px rgba(139, 0, 0, 0.3); }
+        .emotion-fill { background: linear-gradient(90deg, #4a0080, #8b4513); }
+        .flashlight-indicator { margin-top: 5px; font-size: 10px; color: #666; display: flex; align-items: center; gap: 5px; }
+        .flash-dot { width: 8px; height: 8px; border-radius: 50%; background: #333; transition: 0.3s; }
+        .flash-dot.on { background: #ffebc2; box-shadow: 0 0 8px #ffebc2; }
+        .flash-dot.flicker { animation: flickerDot 0.1s infinite; }
+        @keyframes flickerDot { 0%,100%{opacity:1} 50%{opacity:0.2} }
+        @keyframes dangerPulse { 0%, 100% { opacity: 1; box-shadow: 0 0 5px red; } 50% { opacity: 0.5; box-shadow: 0 0 20px red; } }
+        .critical-sanity .resource-fill { animation: dangerPulse 1s infinite; background: #ff0000 !important; }
+        .time-display { font-size: 18px; color: #8b4513; background: rgba(0,0,0,0.6); padding: 5px 15px; border: 1px solid #333; }
+        .crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; pointer-events: none; opacity: 0.6; transition: all 0.2s; }
+        .crosshair.active { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
+        .crosshair::before, .crosshair::after { content: ''; position: absolute; background: #8b4513; }
+        .crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+        .crosshair::after { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
+
+        .rogue-hud { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 20; }
+        .rogue-badge-hud { font-family: 'Share Tech Mono'; font-size: 10px; color: #4a0080; border: 1px solid #4a0080; padding: 5px 12px; background: rgba(0,0,0,0.7); }
+        .curse-indicator { font-family: 'Share Tech Mono'; font-size: 10px; color: #8b0000; border: 1px solid #8b0000; padding: 5px 12px; background: rgba(139, 0, 0, 0.1); display: none; }
+        .curse-indicator.active { display: block; animation: cursePulse 2s infinite; }
+        @keyframes cursePulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; box-shadow: 0 0 10px rgba(139, 0, 0, 0.5); } }
+        .blessing-indicator { font-family: 'Share Tech Mono'; font-size: 10px; color: #4a7c59; border: 1px solid #4a7c59; padding: 5px 12px; background: rgba(74, 124, 89, 0.1); display: none; }
+        .blessing-indicator.active { display: block; animation: blessingPulse 2s infinite; }
+        @keyframes blessingPulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; box-shadow: 0 0 10px rgba(74, 124, 89, 0.5); } }
+
+        #interaction-prompt { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); font-size: 14px; color: #8b4513; opacity: 0; transition: opacity 0.2s; text-align: center; background: rgba(0,0,0,0.8); padding: 8px 16px; border: 1px solid #333; }
+        .key-hint { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; padding: 0 6px; background: linear-gradient(180deg, #3a3a3a, #2a2a2a); border: 1px solid #555; border-radius: 4px; border-bottom: 3px solid #1a1a1a; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: #8b4513; margin: 0 2px; }
+
+        #message-log { position: absolute; bottom: 20px; left: 20px; max-width: 450px; font-size: 12px; color: #8b4513; display: flex; flex-direction: column; gap: 5px; }
+        .message { background: rgba(0,0,0,0.7); padding: 5px 10px; border-left: 2px solid #8b4513; animation: messageSlide 0.3s ease-out; }
+        .message.rogue { border-left-color: #4a0080; color: #9b7cb6; }
+        .message.blessing { border-left-color: #4a7c59; color: #6a9c79; }
+        .message.curse { border-left-color: #8b0000; color: #aa3333; }
+        @keyframes messageSlide { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        .memory-notification { position: absolute; top: 100px; right: 20px; font-size: 12px; color: #8b4513; opacity: 0; transition: opacity 0.5s; background: rgba(0,0,0,0.8); padding: 10px; border: 1px solid #333; }
+        .memory-notification.animate { animation: notificationSlide 3s ease-out forwards; }
+        @keyframes notificationSlide { 0%, 100% { transform: translateX(100px); opacity: 0; } 20%, 80% { transform: translateX(0); opacity: 1; } }
+
+        #item-inspect { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.95) 100%); display: none; pointer-events: auto; z-index: 50; cursor: grab; }
+        #item-inspect:active { cursor: grabbing; }
+        #item-inspect.active { display: block; animation: fadeIn 0.5s; }
+        #item-inspect.hotspot-hover { cursor: pointer; }
+        .inspect-hint { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #666; background: rgba(0,0,0,0.8); padding: 10px 20px; border: 1px solid #333; pointer-events: none;}
+
+        #puzzle-panel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(5,5,5,0.97); border: 1px solid #333; padding: 30px; z-index: 55; display: none; min-width: 350px; pointer-events: auto; }
+        #puzzle-panel.active { display: block; animation: fadeIn 0.3s; }
+        .puzzle-title { font-family: 'Share Tech Mono'; font-size: 16px; color: #8b4513; text-align: center; margin-bottom: 20px; letter-spacing: 2px; }
+        .puzzle-desc { font-size: 13px; color: #888; text-align: center; margin-bottom: 20px; line-height: 1.8; }
+        .puzzle-input-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; }
+        .puzzle-digit { width: 40px; height: 50px; background: #111; border: 1px solid #444; color: #8b4513; font-family: 'Share Tech Mono'; font-size: 24px; text-align: center; outline: none; }
+        .puzzle-digit:focus { border-color: #8b4513; box-shadow: 0 0 10px rgba(139,69,19,0.3); }
+        .puzzle-btn { font-family: 'Share Tech Mono'; padding: 8px 20px; background: transparent; border: 1px solid #555; color: #888; cursor: pointer; transition: 0.3s; margin: 0 5px; }
+        .puzzle-btn:hover { border-color: #8b4513; color: #8b4513; }
+        .puzzle-btn.confirm { border-color: #8b4513; color: #8b4513; }
+        .puzzle-btn.confirm:hover { background: #8b4513; color: #000; }
+        .puzzle-feedback { text-align: center; font-size: 12px; color: #8b0000; min-height: 20px; margin-bottom: 10px; }
+        .puzzle-slots { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .puzzle-slot { width: 60px; height: 60px; background: #111; border: 1px dashed #444; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #666; cursor: pointer; transition: 0.3s; text-align: center; padding: 4px; }
+        .puzzle-slot.filled { border-style: solid; border-color: #8b4513; color: #8b4513; }
+        .puzzle-slot.correct { border-color: #4a7c59; color: #4a7c59; background: rgba(74,124,89,0.1); }
+        .puzzle-options { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .puzzle-option { padding: 8px 12px; background: #1a1a1a; border: 1px solid #333; color: #888; cursor: pointer; font-size: 12px; transition: 0.3s; }
+        .puzzle-option:hover { border-color: #8b4513; color: #8b4513; }
+        .puzzle-option.used { opacity: 0.3; cursor: default; }
+
+        #meditate-btn { position: absolute; bottom: 20px; right: 20px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: #4a0080; border: 1px solid #4a0080; background: rgba(0,0,0,0.6); padding: 10px 20px; cursor: pointer; opacity: 0; transition: all 0.3s; pointer-events: auto; }
+        #meditate-btn.visible { opacity: 1; }
+        #meditate-btn:hover { background: #4a0080; color: #000; box-shadow: 0 0 15px rgba(74, 0, 128, 0.4); }
+        #meditate-btn.cooldown { color: #333; border-color: #333; cursor: not-allowed; }
+
+        #hallucination-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 12; opacity: 0; transition: opacity 2s; mix-blend-mode: overlay; background: radial-gradient(circle, transparent 20%, rgba(139,0,0,0.4) 100%);}
+        .low-sanity-mode #hallucination-overlay { opacity: 1; animation: screenPulse 2s infinite; }
+        @keyframes screenPulse { 0%, 100% { box-shadow: inset 0 0 100px rgba(139, 0, 0, 0.3); } 50% { box-shadow: inset 0 0 200px rgba(139, 0, 0, 0.6); } }
+
+        #shadow-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 13; opacity: 0; transition: opacity 0.1s; }
+        #shadow-flash.visible { opacity: 1; }
+        .shadow-figure { position: absolute; width: 80px; height: 200px; background: radial-gradient(ellipse, rgba(0,0,0,0.95) 30%, transparent 70%); filter: blur(3px); }
+
+        .memory-fragment { position: absolute; pointer-events: none; z-index: 14; opacity: 0; transition: all 1s ease-out; font-size: 14px; color: rgba(139, 69, 19, 0.8); text-shadow: 0 0 10px rgba(139, 69, 19, 0.3); max-width: 300px; text-align: center; }
+        .memory-fragment.visible { opacity: 1; animation: memoryFloat 4s ease-in-out infinite; }
+        @keyframes memoryFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .narrative-text { position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%); font-size: 16px; color: rgba(200, 180, 160, 0.9); text-align: center; max-width: 600px; padding: 20px 30px; background: linear-gradient(90deg, transparent, rgba(0,0,0,0.9), transparent); opacity: 0; transition: opacity 1s; z-index: 25; line-height: 2; pointer-events: none;}
+        .narrative-text.visible { opacity: 1; }
+
+        #diary-panel { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 8, 6, 0.98); border: 1px solid #4a3a2a; padding: 0; z-index: 60; display: none; width: 700px; max-width: 90vw; max-height: 80vh; pointer-events: auto; }
+        #diary-panel.active { display: flex; flex-direction: column; }
+        .diary-header { background: linear-gradient(90deg, #2a1a0a, #3a2a1a, #2a1a0a); padding: 15px 20px; border-bottom: 1px solid #4a3a2a; display: flex; justify-content: space-between; align-items: center; }
+        .diary-title { font-family: 'Cinzel', serif; font-size: 18px; color: #cd853f; letter-spacing: 3px; }
+        .diary-close { background: transparent; border: 1px solid #666; color: #888; padding: 5px 15px; cursor: pointer; font-family: 'Share Tech Mono'; font-size: 11px; transition: all 0.3s; }
+        .diary-close:hover { border-color: #8b4513; color: #8b4513; }
+        .diary-content { padding: 20px; overflow-y: auto; flex: 1; }
+        .diary-entry { margin-bottom: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-left: 3px solid #4a3a2a; transition: all 0.3s; }
+        .diary-entry.unlocked { border-left-color: #8b4513; }
+        .diary-entry.locked { opacity: 0.4; }
+        .diary-entry-title { font-size: 14px; color: #cd853f; margin-bottom: 8px; font-family: 'Share Tech Mono'; }
+        .diary-entry-text { font-size: 13px; color: #888; line-height: 1.8; }
+        .diary-entry-date { font-size: 10px; color: #555; margin-top: 8px; font-family: 'Share Tech Mono'; }
+
+        .story-progress { position: absolute; top: 80px; right: 20px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; font-family: 'Share Tech Mono'; font-size: 10px; color: #666; z-index: 20; }
+        .progress-stage { display: flex; align-items: center; gap: 8px; opacity: 0.4; transition: all 0.5s; }
+        .progress-stage.active { opacity: 1; color: #8b4513; }
+        .progress-stage.completed { opacity: 0.6; color: #4a7c59; }
+        .stage-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+        .collection-progress { position: absolute; top: 80px; left: 20px; display: flex; flex-direction: column; gap: 5px; font-family: 'Share Tech Mono'; font-size: 10px; color: #666; z-index: 20; }
+        .collection-label { display: flex; justify-content: space-between; gap: 10px; }
+        .collection-track { width: 120px; height: 4px; background: rgba(0,0,0,0.5); border: 1px solid #333; overflow: hidden; }
+        .collection-fill { height: 100%; background: linear-gradient(90deg, #4a7c59, #8b4513); transition: width 0.5s; }
+
+        #gameover-screen { z-index: 100; padding: 40px; background: rgba(0,0,0,0.95); }
+        .ending-title { font-family: 'Cinzel', serif; font-size: 42px; color: #8b4513; margin-bottom: 20px; text-align: center; animation: fadeIn 2s; letter-spacing: 8px; }
+        .ending-description { max-width: 650px; font-size: 14px; line-height: 2.2; color: #888; text-align: center; margin-bottom: 40px; padding: 0 20px; }
+        .ending-stats { font-size: 12px; color: #666; margin-bottom: 40px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; font-family: 'Share Tech Mono'; }
+        .stat-item { border: 1px solid #333; padding: 12px; background: rgba(0,0,0,0.3); }
+        .stat-value { font-size: 18px; color: #8b4513; margin-top: 5px; }
+        .ending-quote { font-family: 'Noto Serif SC', serif; font-size: 18px; color: #8b4513; font-style: italic; margin: 20px 0 30px; padding: 20px 40px; border-left: 2px solid #8b4513; border-right: 2px solid #8b4513; text-align: center; line-height: 1.8; }
+        .ending-type-badge { display: inline-block; padding: 8px 20px; font-size: 11px; letter-spacing: 3px; margin-bottom: 20px; border: 1px solid; font-family: 'Share Tech Mono'; }
+
+        #settings-panel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(50,40,35,0.98); border: 2px solid #8b4513; padding: 30px; min-width: 400px; display: none; z-index: 1000; box-shadow: 0 0 50px rgba(111, 139, 19, 0.5); }
+        #settings-panel.active { display: block !important; animation: fadeIn 0.3s; }
+        .settings-title { font-family: 'Share Tech Mono'; font-size: 20px; color: #8b4513; margin-bottom: 25px; text-align: center; letter-spacing: 3px; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-family: 'Share Tech Mono'; font-size: 13px; color: #888; }
+        .setting-label { display: flex; align-items: center; gap: 8px; }
+        .setting-value { color: #8b4513; min-width: 45px; text-align: right; font-weight: bold; }
+        .setting-slider { width: 180px; height: 6px; background: #333; -webkit-appearance: none; outline: none; border-radius: 3px; }
+        .setting-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #8b4513; cursor: pointer; border-radius: 50%; box-shadow: 0 0 8px rgba(139, 69, 19, 0.8); }
+        .setting-slider::-webkit-slider-thumb:hover { background: #cd853f; }
+        .settings-close { width: 100%; padding: 12px; background: transparent; border: 2px solid #8b4513; color: #8b4513; font-family: 'Share Tech Mono'; cursor: pointer; margin-top: 20px; transition: all 0.3s; letter-spacing: 2px; font-size: 14px; }
+        .settings-close:hover { background: #8b4513; color: #000; box-shadow: 0 0 20px rgba(139, 69, 19, 0.5); }
+        .settings-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; z-index: 999; }
+        .settings-overlay.active { display: block !important; }
+
+        .quick-bar { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 20; }
+        .quick-slot { width: 50px; height: 50px; background: rgba(0,0,0,0.7); border: 1px solid #444; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: all 0.3s; position: relative; cursor: pointer; }
+        .quick-slot.active { border-color: #8b4513; box-shadow: 0 0 10px rgba(139, 69, 19, 0.3); }
+        .quick-slot .key-hint { position: absolute; bottom: -18px; font-size: 9px; color: #666; }
+
+        .breathing-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; opacity: 0; transition: opacity 1s; }
+        .breathing-overlay.active { opacity: 0.1; animation: breathe 4s ease-in-out infinite; }
+        @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+
+        #rogue-choice-panel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(5,5,5,0.98); border: 2px solid #4a0080; padding: 40px; z-index: 1000; display: none; min-width: 700px; max-width: 900px; box-shadow: 0 0 60px rgba(74, 0, 128, 0.5); }
+        #rogue-choice-panel.active { display: block !important; animation: fadeIn 0.5s; }
+        .rogue-choice-title { font-family: 'Cinzel', serif; font-size: 28px; color: #4a0080; text-align: center; margin-bottom: 10px; letter-spacing: 4px; text-shadow: 0 0 20px rgba(74, 0, 128, 0.5); }
+        .rogue-choice-subtitle { font-family: 'Share Tech Mono'; font-size: 12px; color: #666; text-align: center; margin-bottom: 30px; }
+        .rogue-choices { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+        .rogue-choice-card {
+            width: 200px;
+            padding: 25px;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid #333;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            pointer-events: auto; /* 新增此行 */
+        }
+
+        .rogue-choice-card:hover { transform: translateY(-5px) scale(1.02); }
+        .rogue-choice-card.blessing { border-color: #4a7c59; }
+        .rogue-choice-card.blessing:hover { border-color: #6a9c79; box-shadow: 0 0 30px rgba(74, 124, 89, 0.5); }
+        .rogue-choice-card.curse { border-color: #8b0000; }
+        .rogue-choice-card.curse:hover { border-color: #aa3333; box-shadow: 0 0 30px rgba(139, 0, 0, 0.5); }
+        .rogue-choice-card.neutral { border-color: #8b4513; }
+        .rogue-choice-card.neutral:hover { border-color: #cd853f; box-shadow: 0 0 30px rgba(139, 69, 19, 0.5); }
+        .rogue-choice-icon { font-size: 40px; margin-bottom: 15px; }
+        .rogue-choice-name { font-family: 'Share Tech Mono'; font-size: 14px; color: #cd853f; margin-bottom: 10px; font-weight: bold; }
+        .rogue-choice-desc { font-size: 11px; color: #aaa; line-height: 1.6; margin-bottom: 15px; }
+        .rogue-choice-type { font-family: 'Share Tech Mono'; font-size: 10px; padding: 5px 12px; display: inline-block; border-radius: 3px; }
+        .rogue-choice-type.blessing { color: #4a7c59; border: 1px solid #4a7c59; background: rgba(74, 124, 89, 0.1); }
+        .rogue-choice-type.curse { color: #8b0000; border: 1px solid #8b0000; background: rgba(139, 0, 0, 0.1); }
+        .rogue-choice-type.neutral { color: #8b4513; border: 1px solid #8b4513; background: rgba(139, 69, 19, 0.1); }
+
+        #run-stats-panel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(5,5,5,0.98); border: 2px solid #8b4513; padding: 40px; z-index: 1000; display: none; min-width: 550px; max-width: 700px; box-shadow: 0 0 50px rgba(139, 69, 19, 0.4); }
+        #run-stats-panel.active { display: block !important; animation: fadeIn 0.5s; }
+        .run-stats-title { font-family: 'Cinzel', serif; font-size: 28px; color: #8b4513; text-align: center; margin-bottom: 5px; letter-spacing: 4px; }
+        .run-stats-subtitle { font-family: 'Share Tech Mono'; font-size: 12px; color: #666; text-align: center; margin-bottom: 30px; }
+        .run-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+        .run-stat-box { background: rgba(0,0,0,0.6); border: 1px solid #444; padding: 20px; text-align: center; }
+        .run-stat-value { font-family: 'Share Tech Mono'; font-size: 28px; color: #8b4513; margin-bottom: 8px; }
+        .run-stat-label { font-size: 11px; color: #666; }
+        .unlocks-section { border-top: 1px solid #444; padding-top: 25px; margin-top: 25px; }
+        .unlocks-title { font-family: 'Share Tech Mono'; font-size: 14px; color: #4a0080; margin-bottom: 15px; text-align: center; }
+        .unlock-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(74, 0, 128, 0.15); border: 1px solid #4a0080; margin-bottom: 10px; font-size: 12px; }
+        .unlock-icon { font-size: 18px; }
+        .unlock-name { color: #cd853f; font-family: 'Share Tech Mono'; font-weight: bold; }
+        .unlock-desc { color: #888; margin-left: auto; font-size: 11px; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* 性能监控 */
+        #perf-monitor { position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.8); color: #0f0; padding: 5px 10px; font-family: monospace; font-size: 11px; z-index: 9999; display: none; border: 1px solid #333; }
+
+        /* 通知系统 */
+        .notification { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); border: 1px solid #8b4513; padding: 15px 25px; z-index: 2000; animation: slideDown 0.3s ease-out; }
+        @keyframes slideDown { from { transform: translate(-50%, -100%); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        .notification.achievement { border-color: #ffd700; }
+        .notification.fade-out { animation: fadeOut 0.3s ease-out forwards; }
+        @keyframes fadeOut { to { transform: translate(-50%, -100%); opacity: 0; } }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .menu-title { font-size: 32px; letter-spacing: 6px; }
+            .rogue-stats { gap: 15px; }
+            .rogue-stat { padding: 8px 12px; }
+            #rogue-choice-panel { min-width: 95vw; padding: 20px; }
+            .rogue-choices { flex-direction: column; align-items: center; }
+            .rogue-choice-card { width: 90%; }
+            #diary-panel { width: 95vw; }
+            #settings-panel { min-width: 90vw; }
+            #run-stats-panel { min-width: 95vw; }
+            .run-stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+<div id="game-container" class="scanlines crt-curve vignette">
+    <div class="film-grain"></div>
+    <div id="canvas-container"><canvas id="render-canvas"></canvas></div>
+    <div id="hallucination-overlay"></div>
+    <div id="shadow-flash"></div>
+    <div class="breathing-overlay" id="breathing-overlay"></div>
+    <div class="settings-overlay" id="settings-overlay"></div>
+    <div id="perf-monitor"></div>
+
+    <div id="ui-overlay">
+        <div id="loading-screen" class="screen active">
+            <div class="loading-text">INITIALIZING ROGUE EDITION ...</div>
+            <div class="loading-bar"><div class="loading-progress" id="loading-progress"></div></div>
+        </div>
+
+        <div id="warning-screen" class="screen">
+            <div class="warning-title">/// WARNING ///</div>
+            <div class="warning-text">
+                本游戏包含心理恐怖元素、动态光影及环境解谜机制。<br>
+                建议佩戴耳机以获得最佳音频体验。<br><br>
+                <span style="color:#8b4513"> 特性：</span><br>
+                • 更流畅的游戏体验<br>
+                • 修复所有已知BUG<br>
+                • 全新肉鸽轮回系统<br>
+                • 祝福与诅咒系统<br>
+                • 自适应难度系统<br>
+                • 成就系统
+            </div>
+            <button class="warning-button" id="enter-btn">进入轮回 / ENTER</button>
+        </div>
+
+        <div id="menu-screen" class="screen">
+            <div class="menu-title">昨日回响</div>
+            <div class="menu-subtitle">ECHOES OF YESTERDAY</div>
+            <div class="rogue-badge">/// ROGUE EDITION  ///</div>
+            <div class="rogue-stats" id="menu-rogue-stats">
+                <div class="rogue-stat"><div class="rogue-stat-value" id="stat-total-runs">0</div><div class="rogue-stat-label">轮回次数</div></div>
+                <div class="rogue-stat"><div class="rogue-stat-value" id="stat-endings">0/12</div><div class="rogue-stat-label">结局收集</div></div>
+                <div class="rogue-stat"><div class="rogue-stat-value" id="stat-unlocks">0</div><div class="rogue-stat-label">解锁内容</div></div>
+                <div class="rogue-stat"><div class="rogue-stat-value" id="stat-achievements">0</div><div class="rogue-stat-label">成就</div></div>
+            </div>
+            <div class="menu-options">
+                <div class="menu-option" id="start-btn">开始轮回 / NEW RUN</div>
+                <div class="menu-option" id="continue-btn">继续轮回 / CONTINUE</div>
+                <div class="menu-option" id="settings-btn">轮回设置 / SETTINGS</div>
+                <div class="menu-option" id="achievements-btn">成就系统 / ACHIEVEMENTS</div>
+                <div class="menu-option" id="controls-btn">操作说明 / CONTROLS</div>
+            </div>
+        </div>
+
+        <div id="hud">
+            <div class="rogue-hud">
+                <div class="rogue-badge-hud" id="run-badge">轮回 #1</div>
+                <div class="curse-indicator" id="curse-indicator">❌ 诅咒生效中</div>
+                <div class="blessing-indicator" id="blessing-indicator">✨ 祝福庇佑中</div>
+            </div>
+            <div class="hud-top">
+                <div style="display:flex; gap:20px;">
+                    <div class="resource-bar" id="sanity-container">
+                        <div class="resource-label"><span>SANITY [理智]</span><span id="sanity-value">100%</span></div>
+                        <div class="resource-track"><div class="resource-fill sanity-fill" id="sanity-fill" style="width:100%"></div></div>
+                        <div class="flashlight-indicator"><div class="flash-dot on" id="flash-dot"></div> FLASHLIGHT [F]</div>
+                    </div>
+                    <div class="resource-bar">
+                        <div class="resource-label"><span>EMOTION [情感]</span><span id="emotion-value">0</span></div>
+                        <div class="resource-track"><div class="resource-fill emotion-fill" id="emotion-fill" style="width:0%"></div></div>
+                    </div>
+                </div>
+                <div class="time-display" id="time-display">19:00</div>
+            </div>
+            <div class="crosshair" id="crosshair"></div>
+            <div id="interaction-prompt"></div>
+            <div class="memory-notification" id="memory-notification">记忆碎片已收集</div>
+            <div id="message-log"></div>
+            <div class="quick-bar">
+                <div class="quick-slot" id="slot-diary">📖<span class="key-hint">J</span></div>
+                <div class="quick-slot active" id="slot-flashlight">🔦<span class="key-hint">F</span></div>
+            </div>
+            <button id="meditate-btn"><span class="key-hint">M</span> 整理思绪 (-20理智 +1小时)</button>
+        </div>
+
+        <div id="item-inspect"><div class="inspect-hint">[鼠标左键拖拽] 旋转寻找机关或线索 | [E] 收起 | [滚轮] 缩放</div></div>
+
+        <div id="puzzle-panel">
+            <div class="puzzle-title" id="puzzle-title"></div>
+            <div class="puzzle-desc" id="puzzle-desc"></div>
+            <div id="puzzle-content"></div>
+            <div class="puzzle-feedback" id="puzzle-feedback"></div>
+            <div style="text-align:center"><button class="puzzle-btn" id="puzzle-close-btn">取消 / CANCEL</button></div>
+        </div>
+
+        <div id="diary-panel">
+            <div class="diary-header"><div class="diary-title">📖 回忆日记</div><button class="diary-close" id="diary-close-btn">关闭 [J]</button></div>
+            <div class="diary-content" id="diary-content"></div>
+        </div>
+
+        <div id="settings-panel">
+            <div class="settings-title">/// SETTINGS ///</div>
+            <div class="setting-item"><span class="setting-label">🔊 主音量</span><span class="setting-value" id="vol-main-value">50%</span><input type="range" class="setting-slider" id="vol-main" min="0" max="100" value="50"></div>
+            <div class="setting-item"><span class="setting-label">🎵 音乐</span><span class="setting-value" id="vol-music-value">60%</span><input type="range" class="setting-slider" id="vol-music" min="0" max="100" value="60"></div>
+            <div class="setting-item"><span class="setting-label">🔔 音效</span><span class="setting-value" id="vol-sfx-value">80%</span><input type="range" class="setting-slider" id="vol-sfx" min="0" max="100" value="80"></div>
+            <div class="setting-item"><span class="setting-label">🖱️ 鼠标灵敏度</span><span class="setting-value" id="mouse-sens-value">50%</span><input type="range" class="setting-slider" id="mouse-sens" min="10" max="100" value="50"></div>
+            <div class="setting-item"><span class="setting-label">📊 性能监控</span><button class="puzzle-btn" id="toggle-perf">显示/隐藏</button></div>
+            <button class="settings-close" id="settings-close-btn">关闭 / CLOSE [ESC]</button>
+        </div>
+
+        <div id="rogue-choice-panel">
+            <div class="rogue-choice-title">轮回之力</div>
+            <div class="rogue-choice-subtitle">选择一项祝福或诅咒，它将影响本轮轮回</div>
+            <div class="rogue-choices" id="rogue-choices"></div>
+        </div>
+
+        <div id="run-stats-panel">
+            <div class="run-stats-title">本轮轮回结束</div>
+            <div class="run-stats-subtitle" id="run-ending-name">结局：遗忘</div>
+            <div class="run-stats-grid">
+                <div class="run-stat-box"><div class="run-stat-value" id="run-memories">0</div><div class="run-stat-label">收集记忆</div></div>
+                <div class="run-stat-box"><div class="run-stat-value" id="run-puzzles">0</div><div class="run-stat-label">解开谜题</div></div>
+                <div class="run-stat-box"><div class="run-stat-value" id="run-sanity">0%</div><div class="run-stat-label">剩余理智</div></div>
+                <div class="run-stat-box"><div class="run-stat-value" id="run-emotion">0</div><div class="run-stat-label">情感总值</div></div>
+                <div class="run-stat-box"><div class="run-stat-value" id="run-time">00:00</div><div class="run-stat-label">游戏时间</div></div>
+                <div class="run-stat-box"><div class="run-stat-value" id="run-score">0</div><div class="run-stat-label">轮回得分</div></div>
+            </div>
+            <div class="unlocks-section" id="unlocks-section" style="display:none;">
+                <div class="unlocks-title">✨ 新内容已解锁</div>
+                <div id="unlocks-list"></div>
+            </div>
+            <button class="warning-button" id="return-menu-btn" style="margin-top:20px;">返回轮回之间 / RETURN</button>
+        </div>
+
+        <div id="gameover-screen" class="screen">
+            <div class="ending-type-badge" id="ending-badge" style="color:#ffd700; border-color:#ffd700">结局</div>
+            <div class="ending-title" id="ending-title"></div>
+            <div class="ending-quote" id="ending-quote"></div>
+            <div class="ending-description" id="ending-description"></div>
+            <div class="ending-stats" id="ending-stats"></div>
+            <button class="warning-button" id="show-stats-btn">查看轮回统计 / STATS</button>
+        </div>
+
+        <div class="memory-fragment" id="memory-fragment"></div>
+        <div class="narrative-text" id="narrative-text"></div>
+
+        <div class="story-progress" id="story-progress">
+            <div class="progress-stage active" data-stage="1"><span>初见</span><div class="stage-dot"></div></div>
+            <div class="progress-stage" data-stage="2"><span>回忆</span><div class="stage-dot"></div></div>
+            <div class="progress-stage" data-stage="3"><span>真相</span><div class="stage-dot"></div></div>
+            <div class="progress-stage" data-stage="4"><span>抉择</span><div class="stage-dot"></div></div>
+            <div class="progress-stage" data-stage="5"><span>终章</span><div class="stage-dot"></div></div>
+        </div>
+
+        <div class="collection-progress" id="collection-progress">
+            <div class="collection-label"><span>记忆收集</span><span id="collection-count">0/18</span></div>
+            <div class="collection-track"><div class="collection-fill" id="collection-fill" style="width:0%"></div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * 《昨日回响：肉鸽轮回》
+ * 优化内容：
+ * 1. 性能优化 - 对象池、纹理缓存、音频节点管理
+ * 2. 架构优化 - 模块化、事件系统、状态管理
+ * 3. 用户体验 - 通知系统、响应式UI、无障碍支持
+ * 4. 游戏性 - 自适应难度、成就系统
+ */
+
+// ==================== 核心工具类 ====================
+class ObjectPool {
+    constructor(factory, reset, initialSize = 10) {
+        this.factory = factory;
+        this.reset = reset;
+        this.pool = [];
+        for (let i = 0; i < initialSize; i++) {
+            this.pool.push(factory());
+        }
+    }
+    acquire() {
+        return this.pool.length > 0 ? this.reset(this.pool.pop()) : this.factory();
+    }
+    release(obj) {
+        this.pool.push(this.reset(obj));
+    }
+}
+
+class EventBus {
+    constructor() {
+        this.listeners = new Map();
+    }
+    on(event, callback, priority = 0) {
+        if (!this.listeners.has(event)) this.listeners.set(event, []);
+        this.listeners.get(event).push({ callback, priority });
+        this.listeners.get(event).sort((a, b) => b.priority - a.priority);
+        return () => this.off(event, callback);
+    }
+    off(event, callback) {
+        const list = this.listeners.get(event);
+        if (list) {
+            const idx = list.findIndex(l => l.callback === callback);
+            if (idx !== -1) list.splice(idx, 1);
+        }
+    }
+    emit(event, ...args) {
+        const list = this.listeners.get(event);
+        if (list) {
+            for (const { callback } of list) {
+                try { callback(...args); } catch (e) { console.error(`Event ${event} error:`, e); }
+            }
+        }
+    }
+}
+
+// ==================== 数据存储 ====================
+const Storage = {
+    save(key, data) {
+        try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) { console.warn('Storage save failed:', e); }
+    },
+    load(key, defaultVal = null) {
+        try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : defaultVal; } catch(e) { return defaultVal; }
+    },
+    remove(key) {
+        try { localStorage.removeItem(key); } catch(e) {}
+    }
+};
+
+const RogueData = {
+    KEY: 'echoes_rogue_v22',
+    getData() { return Storage.load(this.KEY, { totalRuns: 0, endingsFound: [], unlocks: [], bestScore: 0, achievements: [] }); },
+    saveData(data) { Storage.save(this.KEY, data); },
+    addEnding(id) { const d = this.getData(); if (!d.endingsFound.includes(id)) { d.endingsFound.push(id); this.saveData(d); } },
+    incrementRuns() { const d = this.getData(); d.totalRuns++; this.saveData(d); return d.totalRuns; },
+    addAchievement(id) { const d = this.getData(); if (!d.achievements.includes(id)) { d.achievements.push(id); this.saveData(d); return true; } return false; }
+};
+
+const SaveSystem = {
+    KEY: 'echoes_save_v22',
+    save(state) {
+        Storage.save(this.KEY, {
+            sanity: state.sanity, emotion: state.emotion, gameTime: state.gameTime,
+            memories: [...state.memories], narrativeStage: state.narrativeStage,
+            flashlightOn: state.flashlightOn, puzzlesSolved: [...state.puzzlesSolved],
+            currentEffect: state.currentEffect, runStartTime: state.runStartTime,
+            foundSecret: state.foundSecret, timestamp: Date.now()
+        });
+    },
+    load() { return Storage.load(this.KEY); },
+    hasSave() { return !!this.load(); },
+    clear() { Storage.remove(this.KEY); }
+};
+
+// ==================== 音频系统 ====================
+class AudioManager {
+    constructor() {
+        this.ctx = null;
+        this.volumes = { main: 0.5, sfx: 0.8, music: 0.6 };
+        this.master = null;
+        this.sfxGain = null;
+        this.musicGain = null;
+        this.footstepTimer = 0;
+        this.heartbeatInterval = null;
+        this.compressor = null;
+    }
+    init() {
+        if (this.ctx) return;
+        try {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            // 添加压缩器防止爆音
+            this.compressor = this.ctx.createDynamicsCompressor();
+            this.compressor.threshold.value = -24;
+            this.compressor.knee.value = 30;
+            this.compressor.ratio.value = 12;
+
+            this.master = this.ctx.createGain();
+            this.master.gain.value = this.volumes.main;
+            this.sfxGain = this.ctx.createGain();
+            this.sfxGain.gain.value = this.volumes.sfx;
+            this.musicGain = this.ctx.createGain();
+            this.musicGain.gain.value = this.volumes.music;
+
+            this.sfxGain.connect(this.master);
+            this.musicGain.connect(this.master);
+            this.master.connect(this.compressor);
+            this.compressor.connect(this.ctx.destination);
+        } catch(e) { console.warn('Audio init failed:', e); }
+    }
+    resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }
+    setVolume(v) { this.volumes.main = v; if (this.master) this.master.gain.value = v; }
+    setSfxVolume(v) { this.volumes.sfx = v; if (this.sfxGain) this.sfxGain.gain.value = v; }
+    setMusicVolume(v) { this.volumes.music = v; if (this.musicGain) this.musicGain.gain.value = v; }
+
+    playTone(freq, type, dur, vol, slide, dest) {
+        if (!this.ctx || this.ctx.state === 'suspended') return;
+        const d = dest || this.sfxGain;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        if (slide) osc.frequency.exponentialRampToValueAtTime(slide, this.ctx.currentTime + dur);
+        gain.gain.setValueAtTime(Math.min(vol, 0.3), this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+        osc.connect(gain);
+        gain.connect(d);
+        osc.start();
+        osc.stop(this.ctx.currentTime + dur);
+        // 自动清理
+        osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+    }
+
+    playNoise(dur, vol) {
+        if (!this.ctx) return;
+        const bufSize = this.ctx.sampleRate * dur;
+        const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+        const src = this.ctx.createBufferSource();
+        src.buffer = buf;
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(Math.min(vol, 0.2), this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+        src.connect(gain);
+        gain.connect(this.sfxGain);
+        src.start();
+        src.stop(this.ctx.currentTime + dur);
+        src.onended = () => { src.disconnect(); gain.disconnect(); };
+    }
+
+    playFootstep(material = 'wood', isSprinting = false) {
+        const now = Date.now();
+        if (now - this.footstepTimer < (isSprinting ? 250 : 400)) return;
+        this.footstepTimer = now;
+        if (material === 'wood') { this.playTone(60 + Math.random() * 40, 'triangle', 0.1, 0.1); this.playNoise(0.04, 0.03); }
+        else if (material === 'carpet') this.playNoise(0.1, 0.04);
+    }
+
+    playInteract() { this.playTone(600, 'sine', 0.2, 0.15); }
+    playFlashlight() { this.playTone(300, 'square', 0.1, 0.05); }
+    playMeditate() { this.playTone(220, 'sine', 0.5, 0.15); }
+    playUnlock() { this.playTone(880, 'sine', 0.2, 0.15); setTimeout(() => this.playTone(1100, 'sine', 0.4, 0.15), 150); }
+    playFail() { this.playTone(200, 'sawtooth', 0.3, 0.08, 100); }
+    playShadowWhisper() { this.playNoise(2, 0.06); this.playTone(50, 'sine', 2.5, 0.04, 30); }
+    playFlashlightDie() { this.playTone(200, 'square', 0.05, 0.08); setTimeout(() => this.playTone(150, 'square', 0.03, 0.04), 60); }
+    playItemDisplace() { this.playTone(300, 'sine', 0.3, 0.06, 150); }
+    playHeartbeat() { this.playTone(40, 'sine', 0.15, 0.2, 30); }
+    playBlessing() { this.playTone(523, 'sine', 0.3, 0.12); setTimeout(() => this.playTone(659, 'sine', 0.3, 0.12), 100); setTimeout(() => this.playTone(784, 'sine', 0.5, 0.15), 200); }
+    playCurse() { this.playTone(200, 'sawtooth', 0.4, 0.1); setTimeout(() => this.playTone(150, 'sawtooth', 0.4, 0.1), 150); setTimeout(() => this.playTone(100, 'sawtooth', 0.6, 0.12), 300); }
+
+    startHeartbeat(sanity) {
+        if (this.heartbeatInterval) return;
+        const interval = Math.max(300, 1200 * (sanity / 30));
+        this.heartbeatInterval = setInterval(() => this.playHeartbeat(), interval);
+    }
+    stopHeartbeat() {
+        if (this.heartbeatInterval) { clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
+    }
+    updateHeartbeat(sanity) {
+        if (sanity >= 30) { this.stopHeartbeat(); return; }
+        if (this.heartbeatInterval) { clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
+        this.startHeartbeat(sanity);
+    }
+}
+
+// ==================== 纹理生成 ====================
+const TextureCache = {
+    cache: new Map(),
+    get(key, generator) {
+        if (!this.cache.has(key)) {
+            this.cache.set(key, generator());
+        }
+        return this.cache.get(key).clone();
+    }
+};
+
+const TextureGen = {
+    createWood() {
+        return TextureCache.get('wood', () => {
+            const c = document.createElement('canvas');
+            c.width = 512; c.height = 512;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#2c1e16';
+            ctx.fillRect(0, 0, 512, 512);
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            for (let i = 0; i < 400; i++) {
+                ctx.fillRect(0, Math.random() * 512, 512, Math.random() * 8 + 1);
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(4, 4);
+            return tex;
+        });
+    },
+    createWallpaper() {
+        return TextureCache.get('wallpaper', () => {
+            const c = document.createElement('canvas');
+            c.width = 256; c.height = 256;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#3a3e3b';
+            ctx.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < 1000; i++) {
+                ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.1})`;
+                ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(6, 2);
+            return tex;
+        });
+    },
+    createCeiling() {
+        return TextureCache.get('ceiling', () => {
+            const c = document.createElement('canvas');
+            c.width = 256; c.height = 256;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#2a2a28';
+            ctx.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < 500; i++) {
+                ctx.fillStyle = `rgba(${Math.random() > 0.5 ? 50 : 20},${Math.random() > 0.5 ? 48 : 18},${Math.random() > 0.5 ? 45 : 15},0.15)`;
+                ctx.fillRect(Math.random() * 256, Math.random() * 256, Math.random() * 8 + 2, Math.random() * 8 + 2);
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(4, 4);
+            return tex;
+        });
+    },
+    createCarpet() {
+        return TextureCache.get('carpet', () => {
+            const c = document.createElement('canvas');
+            c.width = 128; c.height = 128;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#4a2020';
+            ctx.fillRect(0, 0, 128, 128);
+            for (let i = 0; i < 800; i++) {
+                ctx.fillStyle = `rgba(${80 + Math.random() * 40},${20 + Math.random() * 20},${20 + Math.random() * 15},0.3)`;
+                ctx.fillRect(Math.random() * 128, Math.random() * 128, 2, 2);
+            }
+            ctx.strokeStyle = 'rgba(139,69,19,0.4)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(8, 8, 112, 112);
+            ctx.strokeRect(16, 16, 96, 96);
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(3, 3);
+            return tex;
+        });
+    }
+};
+
+// ==================== 日记系统 ====================
+const DiarySystem = {
+    entries: [
+        { id: 'intro', title: '序章：轮回', date: '永恒的此刻', unlocked: true, text: '又一次轮回开始了。这个充满回忆的咖啡馆，这个我们曾共同梦想的地方。每一次轮回，我都能发现一些之前未曾注意的细节...也许这就是轮回的意义。' },
+        { id: 'music_box', title: '音乐盒的旋律', date: '2014年5月20日', unlocked: false, text: '她送给我这个音乐盒，说这是她童年最珍贵的宝物。每当旋律响起，她就会露出那种温柔的笑容。' },
+        { id: 'diary_found', title: '日记中的秘密', date: '2018年', unlocked: false, text: '她的字迹越来越潦草，情绪越来越低落。原来她一直在独自承受那么多...我却浑然不觉。' },
+        { id: 'painting', title: '我们的梦想', date: '2015年', unlocked: false, text: '她画的是我们梦想中的小店——温暖的木质装潢，阳光透过绿植洒落。她说，等攒够了钱，我们就开一家这样的咖啡馆。' },
+        { id: 'letters', title: '未寄出的话语', date: '2018年末', unlocked: false, text: '一封封信，从甜蜜到苦涩。她写下了所有不敢对我说的话，所有独自承受的恐惧与绝望。' },
+        { id: 'mirror', title: '镜中的真相', date: '2019年3月17日', unlocked: false, text: '317——这个数字反复出现。她第一次见面的日子，她离开的日子，她留下的所有线索都指向这一天。' },
+        { id: 'secret', title: '暗门之后', date: '???', unlocked: false, text: '书架后的暗门通向一个隐藏的小房间。那里贴满了你们的合照，还有她最后的留言。她终于说出了真相。' },
+        { id: 'rogue', title: '轮回的启示', date: '永恒的轮回', unlocked: false, text: '每一次轮回，我都能更接近真相。也许这不是诅咒，而是她给予我的机会——让我有机会理解一切，有机会...改变什么。' },
+        { id: 'ending', title: '终章：选择', date: '2019年3月18日', unlocked: false, text: '黎明即将到来。我必须做出选择——是继续沉溺于过去，还是带着她的爱继续前行？' }
+    ],
+    unlock(id) {
+        const entry = this.entries.find(e => e.id === id);
+        if (entry && !entry.unlocked) { entry.unlocked = true; return entry; }
+        return null;
+    },
+    render() {
+        const container = document.getElementById('diary-content');
+        if (!container) return;
+        container.innerHTML = this.entries.map(e => `
+            <div class="diary-entry ${e.unlocked ? 'unlocked' : 'locked'}">
+                <div class="diary-entry-title">${e.unlocked ? e.title : '???'}</div>
+                <div class="diary-entry-text">${e.unlocked ? e.text : '这段回忆尚未解锁...'}</div>
+                ${e.unlocked ? `<div class="diary-entry-date">${e.date}</div>` : ''}
+            </div>
+        `).join('');
+    }
+};
+
+// ==================== 肉鸽系统 ====================
+const RogueSystem = {
+    blessings: [
+        { id: 'clear_mind', name: '清醒之心', icon: '💎', type: 'blessing', desc: '理智消耗减少50%，初始理智+20', effect: (s) => { s.sanityCostMult = 0.5; s.sanity = Math.min(100, s.sanity + 20); } },
+        { id: 'memory_echo', name: '记忆回响', icon: '📖', type: 'blessing', desc: '收集记忆时额外获得50%情感', effect: (s) => { s.emotionMult = 1.5; } },
+        { id: 'light_bearer', name: '持光者', icon: '🔦', type: 'blessing', desc: '手电筒永不熄灭，光照范围+50%', effect: (s) => { s.flashlightImmune = true; s.flashlightRange = 1.5; } },
+        { id: 'time_walker', name: '时间行者', icon: '⏰', type: 'blessing', desc: '时间流逝速度减半', effect: (s) => { s.timeMult = 0.5; } },
+        { id: 'puzzle_savvy', name: '解谜天才', icon: '🧩', type: 'blessing', desc: '解谜失败不扣理智，谜题提示更明显', effect: (s) => { s.puzzleSafe = true; } },
+        { id: 'shadow_ward', name: '影之护符', icon: '🛡️', type: 'blessing', desc: '影子威胁出现概率大幅降低', effect: (s) => { s.threatMult = 0.3; } },
+        { id: 'quick_thinker', name: '思维敏捷', icon: '⚡', type: 'blessing', desc: '移动速度+30%', effect: (s) => { s.speedMult = 1.3; } },
+        { id: 'meditation_master', name: '冥想大师', icon: '🧘', type: 'blessing', desc: '冥想效果翻倍，冷却时间减半', effect: (s) => { s.meditateMult = 2; s.meditateCooldown = 0.5; } }
+    ],
+    curses: [
+        { id: 'fragile_mind', name: '脆弱心智', icon: '💔', type: 'curse', desc: '理智消耗翻倍，理智自然下降更快', effect: (s) => { s.sanityCostMult = 2; s.sanityDrainMult = 1.5; } },
+        { id: 'fading_memory', name: '消逝记忆', icon: '🌫️', type: 'curse', desc: '收集记忆只获得一半情感', effect: (s) => { s.emotionMult = 0.5; } },
+        { id: 'flickering_light', name: '闪烁之光', icon: '💡', type: 'curse', desc: '手电筒频繁故障，光照范围-30%', effect: (s) => { s.flashlightFlicker = true; s.flashlightRange = 0.7; } },
+        { id: 'time_pressure', name: '时间紧迫', icon: '⏳', type: 'curse', desc: '时间流逝速度翻倍', effect: (s) => { s.timeMult = 2; } },
+        { id: 'confused_mind', name: '混乱思维', icon: '🌀', type: 'curse', desc: '解谜失败扣双倍理智', effect: (s) => { s.puzzlePenalty = 2; } },
+        { id: 'shadow_haunted', name: '影之缠绕', icon: '👤', type: 'curse', desc: '影子威胁出现概率大幅增加', effect: (s) => { s.threatMult = 2.5; } },
+        { id: 'slow_foot', name: '沉重步伐', icon: '🦶', type: 'curse', desc: '移动速度-30%', effect: (s) => { s.speedMult = 0.7; s.noSprint = true; } },
+        { id: 'restless_soul', name: '不安之魂', icon: '👻', type: 'curse', desc: '无法冥想，理智持续缓慢下降', effect: (s) => { s.noMeditate = true; s.sanityDrainMult = 1.3; } }
+    ],
+    neutral: [
+        { id: 'balanced', name: '平衡之道', icon: '☯️', type: 'neutral', desc: '祝福和诅咒各获得一个', effect: (s) => { s.doubleEffect = true; } },
+        { id: 'chaos', name: '混沌轮回', icon: '🎲', type: 'neutral', desc: '所有数值随机波动±30%', effect: (s) => { s.chaosMode = true; } }
+    ],
+    generateChoices(count = 3) {
+        const pool = [...this.blessings, ...this.curses, ...this.neutral];
+        const shuffled = pool.sort(() => Math.random() - 0.5);
+        return shuffled.slice(0, count);
+    },
+    applyEffect(choiceId, state) {
+        const all = [...this.blessings, ...this.curses, ...this.neutral];
+        const choice = all.find(c => c.id === choiceId);
+        if (choice) {
+            choice.effect(state);
+            state.currentEffect = choice;
+            return choice;
+        }
+        return null;
+    }
+};
+
+// ==================== 威胁系统 ====================
+class ThreatSystem {
+    constructor(engine) {
+        this.engine = engine;
+        this.cooldowns = { shadow: 0, flicker: 0, displace: 0, whisper: 0 };
+    }
+    update(dt, sanity) {
+        const threatMult = this.engine.state.threatMult || 1;
+        Object.keys(this.cooldowns).forEach(k => { if (this.cooldowns[k] > 0) this.cooldowns[k] -= dt; });
+        const threatLevel = Math.max(0, 100 - sanity);
+        if (threatLevel > 35 && this.cooldowns.shadow <= 0 && Math.random() < 0.003 * (threatLevel / 100) * threatMult) {
+            this.triggerShadow(); this.cooldowns.shadow = 12 + Math.random() * 18;
+        }
+        if (threatLevel > 25 && this.cooldowns.flicker <= 0 && Math.random() < 0.0015 * (threatLevel / 100) && !this.engine.state.flashlightImmune) {
+            this.triggerFlashlightFlicker(); this.cooldowns.flicker = 8 + Math.random() * 12;
+        }
+        if (threatLevel > 45 && this.cooldowns.displace <= 0 && Math.random() < 0.0008 * (threatLevel / 100)) {
+            this.triggerItemDisplace(); this.cooldowns.displace = 20 + Math.random() * 25;
+        }
+        if (threatLevel > 50 && this.cooldowns.whisper <= 0 && Math.random() < 0.001 * (threatLevel / 100)) {
+            this.triggerWhisper(); this.cooldowns.whisper = 15 + Math.random() * 20;
+        }
+    }
+    triggerShadow() {
+        const el = document.getElementById('shadow-flash');
+        if (!el) return;
+        el.innerHTML = '<div class="shadow-figure" style="left:' + (15 + Math.random() * 70) + '%;top:' + (10 + Math.random() * 40) + '%"></div>';
+        el.classList.add('visible');
+        this.engine.audio.playShadowWhisper();
+        this.engine.updateSanity(-4 * (this.engine.state.sanityCostMult || 1));
+        this.engine.logMessage('眼角掠过一个模糊的影子...');
+        setTimeout(() => el.classList.remove('visible'), 400 + Math.random() * 600);
+    }
+    triggerFlashlightFlicker() {
+        if (!this.engine.state.flashlightOn) return;
+        this.engine.audio.playFlashlightDie();
+        const dot = document.getElementById('flash-dot');
+        if (dot) dot.classList.add('flicker');
+        let flickers = 0;
+        const maxFlickers = 4 + Math.floor(Math.random() * 5);
+        const interval = setInterval(() => {
+            this.engine.flashlight.intensity = flickers % 2 === 0 ? 0 : 1.5;
+            flickers++;
+            if (flickers >= maxFlickers) {
+                clearInterval(interval);
+                if (this.engine.state.flashlightOn) this.engine.flashlight.intensity = 1.5;
+                if (dot) dot.classList.remove('flicker');
+            }
+        }, 60 + Math.random() * 100);
+        this.engine.updateSanity(-3 * (this.engine.state.sanityCostMult || 1));
+        this.engine.logMessage('手电筒闪烁了几下...');
+    }
+    triggerItemDisplace() {
+        const items = this.engine.interactables.filter(m => !this.engine.state.memories.has(m.userData.data.id) && m.parent === this.engine.scene);
+        if (items.length === 0) return;
+        const item = items[Math.floor(Math.random() * items.length)];
+        item.position.x += (Math.random() - 0.5) * 2.5;
+        item.position.z += (Math.random() - 0.5) * 2.5;
+        this.engine.audio.playItemDisplace();
+        this.engine.updateSanity(-2 * (this.engine.state.sanityCostMult || 1));
+        this.engine.logMessage('你感觉有什么东西被动过了...');
+    }
+    triggerWhisper() {
+        const whispers = ['回来...', '别走...', '记得我吗...', '为什么...', '好冷...', '轮回...', '又见面了...'];
+        this.engine.logMessage(`低语："${whispers[Math.floor(Math.random() * whispers.length)]}"`);
+        this.engine.audio.playNoise(1, 0.06);
+        this.engine.updateSanity(-2 * (this.engine.state.sanityCostMult || 1));
+    }
+}
+
+// ==================== 游戏主引擎 ====================
+const GameEngine = {
+    // 游戏状态
+    state: {
+        game: 'loading', sanity: 100, emotion: 0, gameTime: 19 * 60,
+        flashlightOn: true, isInspecting: false, isDragging: false,
+        isPuzzleOpen: false, isDiaryOpen: false, isSettingsOpen: false,
+        memories: new Set(), narrativeStage: 1, musicBoxSolved: false,
+        foundSecret: false, puzzlesSolved: new Set(), isSprinting: false,
+        runNumber: 1, currentEffect: null, runStartTime: 0,
+        sanityCostMult: 1, emotionMult: 1, timeMult: 1, speedMult: 1,
+        threatMult: 1, flashlightImmune: false, flashlightRange: 1,
+        puzzleSafe: false, puzzlePenalty: 1, noMeditate: false,
+        meditateMult: 1, meditateCooldown: 1, noSprint: false,
+        sanityDrainMult: 1, flashlightFlicker: false, doubleEffect: false,
+        chaosMode: false
+    },
+
+    // 系统组件
+    audio: new AudioManager(),
+    threat: null,
+    eventBus: new EventBus(),
+
+    // 渲染相关
+    scene: null, camera: null, renderer: null, flashlight: null,
+    ceilingLight: null, particles: null,
+
+    // 交互相关
+    interactables: [], entitiesMap: new Map(),
+    raycaster: new THREE.Raycaster(),
+    selectedObject: null, hoveredObject: null,
+    currentPuzzleData: null,
+    origCamPos: null, origCamRot: null,
+
+    // 输入
+    input: { fw: false, bw: false, l: false, r: false, sprint: false, euler: new THREE.Euler(0, 0, 0, 'YXZ') },
+    mouseSensitivity: 0.002,
+
+    // 性能监控
+    perfMonitor: { fps: 0, frameCount: 0, lastTime: performance.now(), visible: false },
+    autoSaveTimer: 0,
+    meditateCooldownTimer: 0,
+
+    // 可交互物品数据
+    INTERACTABLES_DATA: {
+        WEDDING_PHOTO: { id: 'wedding_photo', name: '结婚照', type: 'photo', memoryValue: 2, sanityCost: 5, emotionGain: 10, pos: [-3, 1.5, -5], desc: '照片里的你们笑得那么灿烂。那是2014年的春天，樱花盛开的季节。', narrativeStage: 1, visual: { color: 0xccaa88, size: [0.5, 0.6, 0.02] } },
+        MUSIC_BOX: { id: 'music_box', name: '音乐盒', type: 'puzzle_item', memoryValue: 1, sanityCost: 3, emotionGain: 5, pos: [2, 1.35, -4], desc: '她最喜欢的音乐盒。底座上刻着"致我最爱的人"。底部似乎有什么机关可以拨动...', narrativeStage: 1, puzzle: 'music_box_key', visual: { color: 0x8b4513, size: [0.3, 0.2, 0.3], isGroup: true } },
+        OLD_DIARY: { id: 'old_diary', name: '旧日记', type: 'document', memoryValue: 3, sanityCost: 10, emotionGain: 15, pos: [-2, 0.8, 3], desc: '一本深棕色的皮质日记本。最后一页写着："密码就是我们第一次见面的日子——3月17日。"', narrativeStage: 2, requires: ['music_box'], puzzle: 'diary_code', visual: { color: 0x6b4423, size: [0.25, 0.03, 0.35] } },
+        COFFEE_CUP: { id: 'coffee_cup', name: '咖啡杯', type: 'item', memoryValue: 1, sanityCost: 2, emotionGain: 3, pos: [1.5, 1, -2], desc: '蓝白相间的陶瓷杯，杯底还残留着干涸的咖啡渍。她总说这是她的"幸运杯"。', narrativeStage: 1, visual: { color: 0xddccbb, size: [0.08, 0.1, 0.08], isCylinder: true } },
+        RING: { id: 'ring', name: '黯淡的婚戒', type: 'item', memoryValue: 2, sanityCost: 8, emotionGain: 12, pos: [0, 1.25, -4.2], desc: '铂金戒指已经失去了光泽。内侧刻着"L❤Y 2014.5.20"。', narrativeStage: 2, visual: { color: 0xdaa520, size: [0.06, 0.02, 0.06], isTorus: true } },
+        LETTERS: { id: 'letters', name: '未寄出的信', type: 'puzzle_item', memoryValue: 3, sanityCost: 10, emotionGain: 15, pos: [3, 1, 2], desc: '一叠泛黄的信纸，用粉色丝带系着。信件的顺序被打乱了...', narrativeStage: 3, puzzle: 'letter_sort', visual: { color: 0xe8dcc8, size: [0.3, 0.04, 0.4] } },
+        PAINTING: { id: 'painting', name: '油画', type: 'puzzle_item', memoryValue: 2, sanityCost: 5, emotionGain: 8, pos: [-4, 2, 0], desc: '她画的这家店——温暖的木质装潢，阳光透过绿植洒落。画布上的色块似乎可以移动...', narrativeStage: 2, puzzle: 'painting_puzzle', visual: { color: 0x2a4a3a, size: [0.8, 0.6, 0.03] } },
+        MEDICINE_BOTTLE: { id: 'medicine_bottle', name: '药瓶', type: 'item', memoryValue: 2, sanityCost: 7, emotionGain: 10, pos: [2.5, 0.7, 1], desc: '白色的小药瓶，标签上写着"氟西汀"。处方日期是2018年9月。', narrativeStage: 3, visual: { color: 0x88aacc, size: [0.06, 0.15, 0.06], isCylinder: true } },
+        MIRROR: { id: 'mirror', name: '古董镜子', type: 'puzzle_item', memoryValue: 1, sanityCost: 15, emotionGain: 20, pos: [4, 1.5, -3], desc: '银框镜子。镜面上似乎用指尖写过什么...仔细看镜中的倒影，数字会左右颠倒。', narrativeStage: 3, puzzle: 'mirror_code', visual: { color: 0xaabbcc, size: [0.6, 0.8, 0.04], metalness: 0.9 } },
+        CLOCK: { id: 'clock', name: '停止的钟', type: 'item', memoryValue: 1, sanityCost: 5, emotionGain: 5, pos: [0, 2, -5.8], desc: '黄铜座钟，指针永远停在3:33。钟的背后刻着"密码锁：317——我们的纪念日"。', narrativeStage: 2, visual: { color: 0x8b7355, size: [0.3, 0.3, 0.05], isCircle: true } },
+        TEDDY_BEAR: { id: 'teddy_bear', name: '泰迪熊', type: 'item', memoryValue: 2, sanityCost: 4, emotionGain: 8, pos: [-1, 0.5, 4], desc: '棕色的泰迪熊，左耳缺了一小块。口袋里有一张小纸条："爸爸，我爱你。——小雨"', narrativeStage: 1, visual: { color: 0x8b6914, size: [0.2, 0.3, 0.15] } },
+        SECRET_DOOR: { id: 'secret_door', name: '书架后的暗门', type: 'special', memoryValue: 5, sanityCost: 20, emotionGain: 30, pos: [-5, 1.5, -2], desc: '暗门通向一个隐藏的小房间。墙上贴满了你们的合照，还有她最后的留言。', narrativeStage: 4, isSecret: true, visual: { color: 0x3d2b1f, size: [0.8, 1.5, 0.1] } },
+        HAIRPIN: { id: 'hairpin', name: '银发簪', type: 'item', memoryValue: 1, sanityCost: 3, emotionGain: 6, pos: [-3.5, 0.6, 2], desc: '她母亲留给她的遗物。银簪上刻着细小的梅花。', narrativeStage: 2, visual: { color: 0xc0c0c0, size: [0.02, 0.15, 0.02], metalness: 0.8 } },
+        TICKET_STUB: { id: 'ticket_stub', name: '电影票根', type: 'document', memoryValue: 1, sanityCost: 2, emotionGain: 4, pos: [4, 0.5, 1], desc: '《泰坦尼克号》重映票根，2014年5月20日。背面写着"永远"。', narrativeStage: 1, visual: { color: 0xeeddcc, size: [0.15, 0.01, 0.08] } },
+        UMBRELLA: { id: 'umbrella', name: '折叠伞', type: 'item', memoryValue: 1, sanityCost: 2, emotionGain: 3, pos: [-4, 0.3, 4], desc: '一把黑色的折叠伞，伞柄上贴着一张便利贴："记得带伞，今天会下雨。——爱你的她"。', narrativeStage: 1, visual: { color: 0x1a1a1a, size: [0.08, 0.4, 0.08], isCylinder: true } },
+        PERFUME: { id: 'perfume', name: '香水瓶', type: 'item', memoryValue: 1, sanityCost: 4, emotionGain: 7, pos: [3.5, 1.2, -3], desc: '淡紫色的香水瓶，瓶身上写着"Lavender Dream"。这是她最喜欢的味道。', narrativeStage: 2, visual: { color: 0x9b7cb6, size: [0.06, 0.12, 0.06], isCylinder: true } },
+        KEY: { id: 'key', name: '铜钥匙', type: 'item', memoryValue: 1, sanityCost: 3, emotionGain: 5, pos: [1, 0.8, 3.5], desc: '一把古老的铜钥匙，上面刻着"地下室"。', narrativeStage: 3, visual: { color: 0xb87333, size: [0.04, 0.08, 0.02], metalness: 0.7 } },
+        PHONE: { id: 'phone', name: '旧手机', type: 'item', memoryValue: 2, sanityCost: 6, emotionGain: 10, pos: [-2.5, 1.1, -1], desc: '她的旧手机，屏幕已经碎裂。最后一条未发送的短信草稿写着："对不起，我撑不下去了..."', narrativeStage: 4, visual: { color: 0x333333, size: [0.08, 0.15, 0.02] } }
+    },
+
+    // 谜题配置
+    PUZZLE_CONFIGS: {
+        music_box_key: { type: 'click_hotspot', hotspotId: 'music_box_key', reward: { emotion: 10, narrative: '机关发出清脆的响声。一段旋律开始流淌，你回想起了更多...', logMsg: '解锁：音乐盒深层记忆。', diaryId: 'music_box' } },
+        diary_code: { type: 'password', title: '/// 日记本的密码锁 ///', desc: '日记本上有一把三位数密码锁。\n密码可能藏在某个特殊的日子。', answer: '317', reward: { emotion: 8, narrative: '密码锁打开了。日记的最后几页终于展现在你面前...', logMsg: '解锁：日记深层内容。', diaryId: 'diary_found' } },
+        letter_sort: { type: 'sorting', title: '/// 信件的时间线 ///', desc: '这些信件被打乱了。按时间顺序排列它们。', items: [{ text: '今天是我们认识的日子...', order: 1 }, { text: '结婚三年了，我很幸福', order: 2 }, { text: '最近总是睡不着...', order: 3 }, { text: '对不起，我瞒了你很多', order: 4 }, { text: '如果有一天我不在了...', order: 5 }], reward: { emotion: 12, narrative: '信件按时间排好了。从甜蜜到苦涩，你终于读懂了她的心路历程。', logMsg: '解锁：信件完整故事。', diaryId: 'letters' } },
+        painting_puzzle: { type: 'click_hotspot', hotspotId: 'painting_solve', reward: { emotion: 10, narrative: '画恢复了——温暖的木质小店，阳光透过绿植洒在金色的招牌上。', logMsg: '解锁：油画深层记忆。', diaryId: 'painting' } },
+        mirror_code: { type: 'password', title: '/// 镜中的密码 ///', desc: '镜面上用指尖写了几个数字。但从镜子里看，数字会左右颠倒...\n\n镜中显示：ELI', answer: '317', reward: { emotion: 15, narrative: '你读懂了镜中的信息。317——这个数字贯穿了一切。', logMsg: '解锁：镜子深层含义。', diaryId: 'mirror' } }
+    },
+
+    // 初始化
+    init() {
+        console.log('GameEngine  initializing...');
+        this.threat = new ThreatSystem(this);
+        this.initThreeJS();
+        this.bindEvents();
+        this.simulateLoading();
+        DiarySystem.render();
+        this.updateMenuStats();
+        this.loadSettings();
+        if (SaveSystem.hasSave()) {
+            document.getElementById('continue-btn').classList.remove('disabled');
+        } else {
+            document.getElementById('continue-btn').classList.add('disabled');
+        }
+    },
+
+    // 绑定事件
+    bindEvents() {
+        // 菜单按钮
+        document.getElementById('enter-btn').addEventListener('click', () => this.showMenu());
+        document.getElementById('start-btn').addEventListener('click', () => this.startGame());
+        document.getElementById('continue-btn').addEventListener('click', () => this.continueGame());
+        document.getElementById('settings-btn').addEventListener('click', (e) => { e.stopPropagation(); this.showSettings(); });
+        document.getElementById('controls-btn').addEventListener('click', () => this.showControls());
+        document.getElementById('achievements-btn').addEventListener('click', () => this.showAchievements());
+
+        // 设置面板
+        document.getElementById('settings-close-btn').addEventListener('click', () => this.closeSettings());
+        document.getElementById('settings-overlay').addEventListener('click', () => this.closeSettings());
+        document.getElementById('toggle-perf').addEventListener('click', () => this.togglePerfMonitor());
+
+        // 设置滑块
+        ['vol-main', 'vol-music', 'vol-sfx', 'mouse-sens'].forEach(id => {
+            const slider = document.getElementById(id);
+            if (slider) slider.addEventListener('input', (e) => this.onSettingChange(id, e.target.value));
+        });
+
+        // HUD按钮
+        document.getElementById('slot-diary').addEventListener('click', () => this.toggleDiary());
+        document.getElementById('slot-flashlight').addEventListener('click', () => this.toggleFlashlight());
+        document.getElementById('meditate-btn').addEventListener('click', () => this.meditate());
+        document.getElementById('puzzle-close-btn').addEventListener('click', () => this.closePuzzle());
+        document.getElementById('diary-close-btn').addEventListener('click', () => this.toggleDiary());
+        document.getElementById('return-menu-btn').addEventListener('click', () => this.returnToMenu());
+        document.getElementById('show-stats-btn').addEventListener('click', () => this.showRunStats());
+
+        // 键盘事件
+        document.addEventListener('keydown', (e) => this.onKeyDown(e));
+        document.addEventListener('keyup', (e) => this.onKeyUp(e));
+
+        // 鼠标事件
+        document.addEventListener('click', () => this.onDocumentClick());
+        document.addEventListener('mousedown', (e) => this.onMouseDown(e));
+        document.addEventListener('mouseup', () => this.state.isDragging = false);
+        document.addEventListener('mousemove', (e) => this.onMouseMove(e));
+        document.addEventListener('wheel', (e) => this.onWheel(e));
+
+        // 窗口调整
+        window.addEventListener('resize', () => this.onResize());
+    },
+
+    // 设置相关
+    showSettings() {
+        this.state.isSettingsOpen = true;
+        document.getElementById('settings-panel').classList.add('active');
+        document.getElementById('settings-overlay').classList.add('active');
+        if (document.pointerLockElement) document.exitPointerLock();
+        this.updateSettingsDisplay();
+    },
+    closeSettings() {
+        this.state.isSettingsOpen = false;
+        document.getElementById('settings-panel').classList.remove('active');
+        document.getElementById('settings-overlay').classList.remove('active');
+        if (this.state.game === 'playing' && !this.state.isInspecting && !this.state.isPuzzleOpen && !this.state.isDiaryOpen) {
+            document.body.requestPointerLock();
+        }
+    },
+    onSettingChange(id, value) {
+        const num = parseInt(value);
+        switch (id) {
+            case 'vol-main': this.audio.setVolume(num / 100); document.getElementById('vol-main-value').textContent = num + '%'; break;
+            case 'vol-music': this.audio.setMusicVolume(num / 100); document.getElementById('vol-music-value').textContent = num + '%'; break;
+            case 'vol-sfx': this.audio.setSfxVolume(num / 100); document.getElementById('vol-sfx-value').textContent = num + '%'; break;
+            case 'mouse-sens': this.mouseSensitivity = num / 2000; document.getElementById('mouse-sens-value').textContent = num + '%'; break;
+        }
+        this.saveSettings();
+    },
+    updateSettingsDisplay() {
+        document.getElementById('vol-main-value').textContent = Math.round(this.audio.volumes.main * 100) + '%';
+        document.getElementById('vol-music-value').textContent = Math.round(this.audio.volumes.music * 100) + '%';
+        document.getElementById('vol-sfx-value').textContent = Math.round(this.audio.volumes.sfx * 100) + '%';
+        document.getElementById('mouse-sens-value').textContent = Math.round(this.mouseSensitivity * 2000) + '%';
+        document.getElementById('vol-main').value = Math.round(this.audio.volumes.main * 100);
+        document.getElementById('vol-music').value = Math.round(this.audio.volumes.music * 100);
+        document.getElementById('vol-sfx').value = Math.round(this.audio.volumes.sfx * 100);
+        document.getElementById('mouse-sens').value = Math.round(this.mouseSensitivity * 2000);
+    },
+    saveSettings() {
+        Storage.save('echoes_settings', { audio: this.audio.volumes, mouseSensitivity: this.mouseSensitivity });
+    },
+    loadSettings() {
+        const settings = Storage.load('echoes_settings');
+        if (settings) {
+            if (settings.audio) {
+                this.audio.volumes = settings.audio;
+                this.audio.setVolume(settings.audio.main);
+                this.audio.setMusicVolume(settings.audio.music);
+                this.audio.setSfxVolume(settings.audio.sfx);
+            }
+            if (settings.mouseSensitivity) this.mouseSensitivity = settings.mouseSensitivity;
+        }
+    },
+    togglePerfMonitor() {
+        this.perfMonitor.visible = !this.perfMonitor.visible;
+        document.getElementById('perf-monitor').style.display = this.perfMonitor.visible ? 'block' : 'none';
+    },
+
+    // 菜单相关
+    showMenu() {
+        document.getElementById('loading-screen').classList.remove('active');
+        document.getElementById('warning-screen').classList.remove('active');
+        document.getElementById('menu-screen').classList.add('active');
+    },
+    updateMenuStats() {
+        const data = RogueData.getData();
+        document.getElementById('stat-total-runs').textContent = data.totalRuns;
+        document.getElementById('stat-endings').textContent = `${data.endingsFound.length}/12`;
+        document.getElementById('stat-unlocks').textContent = data.unlocks.length;
+        document.getElementById('stat-achievements').textContent = data.achievements.length;
+    },
+    showControls() {
+        this.showNotification("【操作指南】\nWASD - 移动 | Shift - 冲刺\n鼠标 - 环顾 | E - 互动\nF - 手电筒 | J - 日记\nM - 冥想 | ESC - 关闭面板", 'info', 8000);
+    },
+    showAchievements() {
+        const data = RogueData.getData();
+        const text = data.achievements.length > 0 ? `已解锁成就：${data.achievements.join(', ')}` : '尚未解锁任何成就';
+        this.showNotification(text, 'info', 5000);
+    },
+
+    // 开始游戏
+    startGame() {
+        this.state.runNumber = RogueData.incrementRuns();
+        document.getElementById('run-badge').textContent = `轮回 #${this.state.runNumber}`;
+        document.getElementById('menu-screen').classList.remove('active');
+        this.showRogueChoice();
+    },
+    continueGame() {
+        const save = SaveSystem.load();
+        if (!save) { this.showNotification('没有找到存档', 'info'); return; }
+        this.state.sanity = save.sanity;
+        this.state.emotion = save.emotion;
+        this.state.gameTime = save.gameTime;
+        this.state.memories = new Set(save.memories);
+        this.state.narrativeStage = save.narrativeStage;
+        this.state.flashlightOn = save.flashlightOn;
+        this.state.puzzlesSolved = new Set(save.puzzlesSolved);
+        this.state.currentEffect = save.currentEffect;
+        this.state.runStartTime = save.runStartTime;
+        this.state.foundSecret = save.foundSecret;
+
+        if (this.state.currentEffect) {
+            RogueSystem.applyEffect(this.state.currentEffect.id, this.state);
+        }
+
+        this.state.runNumber = RogueData.getData().totalRuns;
+        document.getElementById('run-badge').textContent = `轮回 #${this.state.runNumber}`;
+        document.getElementById('menu-screen').classList.remove('active');
+        this.startPlaying();
+    },
+
+    // 肉鸽选择
+    showRogueChoice() {
+        const choices = RogueSystem.generateChoices(3);
+        const container = document.getElementById('rogue-choices');
+        container.innerHTML = '';
+        choices.forEach(choice => {
+            const card = document.createElement('div');
+            card.className = `rogue-choice-card ${choice.type}`;
+            card.innerHTML = `
+                <div class="rogue-choice-icon">${choice.icon}</div>
+                <div class="rogue-choice-name">${choice.name}</div>
+                <div class="rogue-choice-desc">${choice.desc}</div>
+                <div class="rogue-choice-type ${choice.type}">${choice.type === 'blessing' ? '祝福' : choice.type === 'curse' ? '诅咒' : '特殊'}</div>
+            `;
+            card.addEventListener('click', () => this.selectRogueChoice(choice.id));
+            container.appendChild(card);
+        });
+        document.getElementById('rogue-choice-panel').classList.add('active');
+        if (document.pointerLockElement) document.exitPointerLock();
+    },
+    selectRogueChoice(choiceId) {
+        const effect = RogueSystem.applyEffect(choiceId, this.state);
+        document.getElementById('rogue-choice-panel').classList.remove('active');
+        if (effect) {
+            if (effect.type === 'blessing') {
+                document.getElementById('blessing-indicator').classList.add('active');
+                document.getElementById('curse-indicator').classList.remove('active');
+                this.audio.playBlessing();
+                this.logMessage(`获得祝福：${effect.name}！`, 'blessing');
+            } else if (effect.type === 'curse') {
+                document.getElementById('curse-indicator').classList.add('active');
+                document.getElementById('blessing-indicator').classList.remove('active');
+                this.audio.playCurse();
+                this.logMessage(`遭受诅咒：${effect.name}...`, 'curse');
+            } else {
+                this.logMessage(`特殊效果：${effect.name}`);
+            }
+            if (this.state.chaosMode) {
+                this.state.sanity = Math.min(100, Math.max(0, this.state.sanity * (0.7 + Math.random() * 0.6)));
+                this.logMessage('混沌模式：数值已随机化！', 'rogue');
+            }
+            if (this.state.doubleEffect) {
+                const oppositePool = effect.type === 'blessing' ? RogueSystem.curses : RogueSystem.blessings;
+                const extra = oppositePool[Math.floor(Math.random() * oppositePool.length)];
+                extra.effect(this.state);
+                this.logMessage(`平衡之道额外效果：${extra.name}`);
+            }
+        }
+        this.startPlaying();
+    },
+    startPlaying() {
+        this.state.game = 'playing';
+        this.state.runStartTime = Date.now();
+        this.audio.init();
+        this.audio.resume();
+        document.getElementById('hud').style.display = 'block';
+        document.body.requestPointerLock();
+        this.updateHUD();
+        this.logMessage("轮回开始。按 [F] 开启手电筒...");
+        this.logMessage("检视【音乐盒】，寻找底部的机关。");
+        SaveSystem.save(this.state);
+    },
+
+    // Three.js初始化
+    initThreeJS() {
+        const canvas = document.getElementById('render-canvas');
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x020202);
+        this.scene.fog = new THREE.FogExp2(0x020202, 0.08);
+
+        this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 50);
+        this.camera.position.set(0, 1.6, 5);
+        this.scene.add(this.camera);
+
+        this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 0.8;
+
+        // 灯光
+        this.scene.add(new THREE.AmbientLight(0x222233, 0.12));
+        this.ceilingLight = new THREE.PointLight(0xffaa55, 0.35, 12);
+        this.ceilingLight.position.set(0, 3.8, 0);
+        this.ceilingLight.castShadow = true;
+        this.scene.add(this.ceilingLight);
+
+        const fireplaceLight = new THREE.PointLight(0xff6622, 0, 6);
+        fireplaceLight.position.set(0, 0.5, 5.5);
+        this.scene.add(fireplaceLight);
+
+        const moonLight = new THREE.DirectionalLight(0x4466aa, 0.08);
+        moonLight.position.set(10, 5, -10);
+        this.scene.add(moonLight);
+
+        // 手电筒
+        this.flashlight = new THREE.SpotLight(0xebe5df, 1.5, 18, Math.PI / 5, 0.7, 1.2);
+        this.flashlight.position.set(0.2, -0.2, 0);
+        this.flashlight.target.position.set(0, 0, -1);
+        this.flashlight.castShadow = true;
+        this.camera.add(this.flashlight);
+        this.camera.add(this.flashlight.target);
+
+        this.buildEnvironment();
+        this.buildDecorations();
+        this.createParticles();
+        this.populateItems();
+
+        this.lastTime = performance.now();
+        requestAnimationFrame((t) => this.gameLoop(t));
+    },
+
+    buildEnvironment() {
+        // 地板
+        const floorMat = new THREE.MeshStandardMaterial({ map: TextureGen.createWood(), roughness: 0.8, metalness: 0.1 });
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+
+        // 地毯
+        const carpetMat = new THREE.MeshStandardMaterial({ map: TextureGen.createCarpet(), roughness: 0.95 });
+        const carpet = new THREE.Mesh(new THREE.PlaneGeometry(6, 5), carpetMat);
+        carpet.rotation.x = -Math.PI / 2;
+        carpet.position.set(0, 0.005, 0);
+        carpet.receiveShadow = true;
+        this.scene.add(carpet);
+
+        // 天花板
+        const ceilMat = new THREE.MeshStandardMaterial({ map: TextureGen.createCeiling(), roughness: 0.95 });
+        const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), ceilMat);
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.y = 4;
+        this.scene.add(ceiling);
+
+        // 墙壁
+        const wallMat = new THREE.MeshStandardMaterial({ map: TextureGen.createWallpaper(), roughness: 0.9, side: THREE.DoubleSide });
+        const walls = [
+            { pos: [0, 2, -7], rot: [0, 0, 0] },
+            { pos: [-7, 2, 0], rot: [0, Math.PI / 2, 0] },
+            { pos: [7, 2, 0], rot: [0, -Math.PI / 2, 0] },
+            { pos: [0, 2, 7], rot: [0, Math.PI, 0] }
+        ];
+        walls.forEach(w => {
+            const wall = new THREE.Mesh(new THREE.PlaneGeometry(14, 4), wallMat);
+            wall.position.set(...w.pos);
+            wall.rotation.set(...w.rot);
+            wall.receiveShadow = true;
+            this.scene.add(wall);
+        });
+
+        // 柜台
+        const counterMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.7, metalness: 0.1 });
+        const counter = new THREE.Mesh(new THREE.BoxGeometry(4.5, 1.2, 1.8), counterMat);
+        counter.position.set(0, 0.6, -4.5);
+        counter.castShadow = true;
+        counter.receiveShadow = true;
+        this.scene.add(counter);
+
+        const counterTop = new THREE.Mesh(new THREE.BoxGeometry(4.7, 0.05, 2), new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.6 }));
+        counterTop.position.set(0, 1.22, -4.5);
+        this.scene.add(counterTop);
+    },
+
+    buildDecorations() {
+        const woodMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.8 });
+        const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 });
+        const metalMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.7, roughness: 0.3 });
+        const velvetMat = new THREE.MeshStandardMaterial({ color: 0x4a2020, roughness: 0.95 });
+
+        // 书架
+        const shelfGroup = new THREE.Group();
+        const shelfFrame = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.2, 0.45), woodMat);
+        shelfGroup.add(shelfFrame);
+        for (let i = 0; i < 5; i++) {
+            const plank = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.03, 0.42), woodMat);
+            plank.position.y = -1.4 + i * 0.7;
+            shelfGroup.add(plank);
+        }
+        const bookColors = [0x8b0000, 0x00008b, 0x006400, 0x8b4513, 0x4b0082, 0x800020, 0x2f4f4f];
+        for (let row = 0; row < 5; row++) {
+            const numBooks = 4 + Math.floor(Math.random() * 5);
+            let x = -0.9;
+            for (let b = 0; b < numBooks && x < 0.9; b++) {
+                const w = 0.04 + Math.random() * 0.08, h = 0.35 + Math.random() * 0.3;
+                const book = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.28), new THREE.MeshStandardMaterial({ color: bookColors[Math.floor(Math.random() * bookColors.length)], roughness: 0.9 }));
+                book.position.set(x + w / 2, -1.2 + row * 0.7 + h / 2, 0);
+                book.rotation.z = (Math.random() - 0.5) * 0.05;
+                shelfGroup.add(book);
+                x += w + 0.015;
+            }
+        }
+        shelfGroup.position.set(-6.7, 2, -2);
+        shelfGroup.rotation.y = Math.PI / 2;
+        this.scene.add(shelfGroup);
+
+        // 窗户
+        const windowGroup = new THREE.Group();
+        const frameH = new THREE.Mesh(new THREE.BoxGeometry(2, 0.08, 0.1), woodMat);
+        const frameV1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.6, 0.1), woodMat);
+        const frameV2 = frameV1.clone();
+        const frameB = frameH.clone();
+        frameH.position.y = 0.8;
+        frameB.position.y = -0.8;
+        frameV1.position.x = -1;
+        frameV2.position.x = 1;
+        windowGroup.add(frameH, frameV1, frameV2, frameB);
+        const glassMat = new THREE.MeshStandardMaterial({ color: 0x0a0a15, transparent: true, opacity: 0.7, roughness: 0.1 });
+        const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.5), glassMat);
+        glass.position.z = -0.02;
+        windowGroup.add(glass);
+        const curtainMat = new THREE.MeshStandardMaterial({ color: 0x3a1a1a, roughness: 0.95, side: THREE.DoubleSide });
+        const curtainL = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 2), curtainMat);
+        curtainL.position.set(-1.3, 0, 0.05);
+        const curtainR = curtainL.clone();
+        curtainR.position.x = 1.3;
+        windowGroup.add(curtainL, curtainR);
+        const windowLight = new THREE.PointLight(0x223355, 0.12, 5);
+        windowLight.position.set(0, 0, 0.5);
+        windowGroup.add(windowLight);
+        windowGroup.position.set(6.9, 2, -1);
+        windowGroup.rotation.y = -Math.PI / 2;
+        this.scene.add(windowGroup);
+
+        // 壁炉
+        const fireplaceGroup = new THREE.Group();
+        const fpBase = new THREE.Mesh(new THREE.BoxGeometry(2, 1.3, 0.7), new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9 }));
+        fpBase.position.y = 0.65;
+        fireplaceGroup.add(fpBase);
+        const fpOpening = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.9, 0.35), darkMat);
+        fpOpening.position.set(0, 0.55, 0.2);
+        fireplaceGroup.add(fpOpening);
+        const fpMantle = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 0.8), woodMat);
+        fpMantle.position.y = 1.35;
+        fireplaceGroup.add(fpMantle);
+        fireplaceGroup.position.set(0, 0, 6.6);
+        this.scene.add(fireplaceGroup);
+
+        // 吊灯
+        const chandelierGroup = new THREE.Group();
+        const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.8, 6), metalMat);
+        chain.position.y = 0.4;
+        chandelierGroup.add(chain);
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.1, 8), metalMat);
+        chandelierGroup.add(base);
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2;
+            const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.35, 4), metalMat);
+            arm.position.set(Math.cos(angle) * 0.18, -0.05, Math.sin(angle) * 0.18);
+            chandelierGroup.add(arm);
+            const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.08, 6), new THREE.MeshStandardMaterial({ color: 0xffeedd }));
+            candle.position.set(Math.cos(angle) * 0.35, -0.08, Math.sin(angle) * 0.35);
+            chandelierGroup.add(candle);
+            const flame = new THREE.PointLight(0xffaa55, 0.05, 1);
+            flame.position.set(Math.cos(angle) * 0.35, -0.02, Math.sin(angle) * 0.35);
+            chandelierGroup.add(flame);
+        }
+        chandelierGroup.position.set(0, 3.9, 0);
+        this.scene.add(chandelierGroup);
+
+        // 椅子
+        const chairGroup = new THREE.Group();
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.75), velvetMat);
+        seat.position.y = 0.45;
+        const backrest = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.75, 0.08), velvetMat);
+        backrest.position.set(0, 0.85, -0.33);
+        const legGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.45, 6);
+        const legFL = new THREE.Mesh(legGeo, woodMat);
+        legFL.position.set(-0.38, 0.225, 0.32);
+        const legFR = legFL.clone();
+        legFR.position.x = 0.38;
+        const legBL = legFL.clone();
+        legBL.position.z = -0.32;
+        const legBR = legFR.clone();
+        legBR.position.z = -0.32;
+        chairGroup.add(seat, backrest, legFL, legFR, legBL, legBR);
+        chairGroup.position.set(4.5, 0, 4);
+        chairGroup.rotation.y = -0.5;
+        this.scene.add(chairGroup);
+
+        // 桌子
+        const tableGroup = new THREE.Group();
+        const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.04, 12), woodMat);
+        tableTop.position.y = 0.65;
+        const tableLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 0.65, 8), woodMat);
+        tableLeg.position.y = 0.325;
+        tableGroup.add(tableTop, tableLeg);
+        tableGroup.position.set(-3.5, 0, 3.8);
+        this.scene.add(tableGroup);
+
+        // 盆栽
+        const plantGroup = new THREE.Group();
+        const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.2, 0.35, 8), new THREE.MeshStandardMaterial({ color: 0x8b4513 }));
+        pot.position.y = 0.175;
+        plantGroup.add(pot);
+        for (let i = 0; i < 8; i++) {
+            const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.25, 4), new THREE.MeshStandardMaterial({ color: 0x2e8b57 }));
+            leaf.position.set((Math.random() - 0.5) * 0.15, 0.4, (Math.random() - 0.5) * 0.15);
+            leaf.rotation.x = (Math.random() - 0.5) * 0.5;
+            leaf.rotation.z = (Math.random() - 0.5) * 0.5;
+            plantGroup.add(leaf);
+        }
+        plantGroup.position.set(5.5, 0, -4);
+        this.scene.add(plantGroup);
+
+        // 落地灯
+        const lampGroup = new THREE.Group();
+        const lampPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.8, 8), metalMat);
+        lampPole.position.y = 0.9;
+        const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.05, 8), metalMat);
+        lampBase.position.y = 0.025;
+        const lampShade = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.3, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xeeddcc, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
+        lampShade.position.y = 1.8;
+        const lampLight = new THREE.PointLight(0xffddaa, 0.15, 4);
+        lampLight.position.y = 1.7;
+        lampGroup.add(lampPole, lampBase, lampShade, lampLight);
+        lampGroup.position.set(-5, 0, 4.5);
+        this.scene.add(lampGroup);
+    },
+
+    createParticles() {
+        const geo = new THREE.BufferGeometry();
+        const pos = [];
+        for (let i = 0; i < 500; i++) {
+            pos.push((Math.random() - 0.5) * 12, Math.random() * 4, (Math.random() - 0.5) * 12);
+        }
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        const mat = new THREE.PointsMaterial({ color: 0x887766, size: 0.025, transparent: true, opacity: 0.35 });
+        this.particles = new THREE.Points(geo, mat);
+        this.scene.add(this.particles);
+    },
+
+    populateItems() {
+        Object.values(this.INTERACTABLES_DATA).forEach(data => {
+            let mesh;
+            const vis = data.visual || {};
+            const matOpts = { color: vis.color || 0xaaaaaa, roughness: 0.5 };
+            if (vis.metalness) matOpts.metalness = vis.metalness;
+            const mat = new THREE.MeshStandardMaterial(matOpts);
+            const s = vis.size || [0.2, 0.2, 0.2];
+
+            if (data.id === 'music_box') {
+                mesh = new THREE.Group();
+                const mainBox = new THREE.Mesh(new THREE.BoxGeometry(...s), new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.6 }));
+                mainBox.castShadow = true;
+                mesh.add(mainBox);
+                const lid = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.02, 0.15), new THREE.MeshStandardMaterial({ color: 0x9b5523, roughness: 0.5 }));
+                lid.position.set(0, 0.11, -0.08);
+                lid.rotation.x = -0.3;
+                mesh.add(lid);
+                const keyMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 16), new THREE.MeshStandardMaterial({ color: 0x550000, metalness: 0.8 }));
+                keyMesh.position.set(0, -0.1, 0);
+                keyMesh.userData = { isHotspot: true, id: 'music_box_key' };
+                mesh.add(keyMesh);
+                const trim = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.01, 0.31), new THREE.MeshStandardMaterial({ color: 0xdaa520, metalness: 0.6 }));
+                trim.position.y = 0.005;
+                mesh.add(trim);
+            } else if (vis.isCylinder) {
+                mesh = new THREE.Mesh(new THREE.CylinderGeometry(s[0], s[0] * 0.9, s[1], 12), mat);
+                mesh.castShadow = true;
+            } else if (vis.isTorus) {
+                mesh = new THREE.Mesh(new THREE.TorusGeometry(s[0], s[1], 8, 24), mat);
+                mesh.castShadow = true;
+            } else if (vis.isCircle) {
+                mesh = new THREE.Mesh(new THREE.CylinderGeometry(s[0], s[0], s[2], 24), mat);
+                mesh.castShadow = true;
+            } else if (data.type === 'photo') {
+                mesh = new THREE.Group();
+                const frameMat = new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.7 });
+                const fTop = new THREE.Mesh(new THREE.BoxGeometry(s[0] + 0.06, 0.03, 0.03), frameMat);
+                fTop.position.y = s[1] / 2;
+                const fBot = fTop.clone();
+                fBot.position.y = -s[1] / 2;
+                const fLeft = new THREE.Mesh(new THREE.BoxGeometry(0.03, s[1] + 0.06, 0.03), frameMat);
+                fLeft.position.x = -s[0] / 2;
+                const fRight = fLeft.clone();
+                fRight.position.x = s[0] / 2;
+                const photo = new THREE.Mesh(new THREE.BoxGeometry(s[0], s[1], s[2]), mat);
+                mesh.add(fTop, fBot, fLeft, fRight, photo);
+                mesh.castShadow = true;
+            } else {
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(...s), mat);
+                mesh.castShadow = true;
+            }
+
+            mesh.position.set(...data.pos);
+            mesh.userData = { interactable: true, data: data, originalY: data.pos[1], floatOffset: Math.random() * Math.PI * 2 };
+            this.scene.add(mesh);
+            this.interactables.push(mesh);
+            this.entitiesMap.set(data.id, mesh);
+        });
+    },
+
+    // 输入处理
+    onKeyDown(e) {
+        if (this.state.game !== 'playing') return;
+        if (e.code === 'Escape') {
+            if (this.state.isSettingsOpen) this.closeSettings();
+            else if (this.state.isPuzzleOpen) this.closePuzzle();
+            else if (this.state.isInspecting) this.closeInspect();
+            else if (this.state.isDiaryOpen) this.toggleDiary();
+            return;
+        }
+        if (this.state.isSettingsOpen) return;
+        switch (e.code) {
+            case 'KeyW': this.input.fw = true; break;
+            case 'KeyS': this.input.bw = true; break;
+            case 'KeyA': this.input.l = true; break;
+            case 'KeyD': this.input.r = true; break;
+            case 'ShiftLeft': this.input.sprint = !this.state.noSprint; break;
+            case 'KeyJ': this.toggleDiary(); break;
+            case 'KeyF': if (!this.state.isInspecting && !this.state.isPuzzleOpen) this.toggleFlashlight(); break;
+            case 'KeyE':
+                if (this.state.isPuzzleOpen) return;
+                if (this.state.isInspecting) this.closeInspect();
+                else this.interact();
+                break;
+            case 'KeyM': if (!this.state.noMeditate) this.meditate(); break;
+        }
+    },
+    onKeyUp(e) {
+        switch (e.code) {
+            case 'KeyW': this.input.fw = false; break;
+            case 'KeyS': this.input.bw = false; break;
+            case 'KeyA': this.input.l = false; break;
+            case 'KeyD': this.input.r = false; break;
+            case 'ShiftLeft': this.input.sprint = false; break;
+        }
+    },
+    onDocumentClick() {
+        if (this.state.game === 'playing' && !this.state.isInspecting && !this.state.isPuzzleOpen && !this.state.isDiaryOpen && !this.state.isSettingsOpen) {
+            this.audio.resume();
+            document.body.requestPointerLock();
+        }
+    },
+    onMouseDown(e) {
+        if (this.state.game !== 'playing' || !this.state.isInspecting || this.state.isPuzzleOpen || this.state.isSettingsOpen) return;
+        if (e.button === 0) {
+            if (this.checkInspectInteraction(e)) return;
+            this.state.isDragging = true;
+            this.mousePrevious = { x: e.clientX, y: e.clientY };
+        }
+    },
+    onMouseMove(e) {
+        if (this.state.game === 'playing' && !this.state.isInspecting && !this.state.isPuzzleOpen && !this.state.isDiaryOpen && !this.state.isSettingsOpen && document.pointerLockElement) {
+            this.input.euler.setFromQuaternion(this.camera.quaternion, 'YXZ');
+            this.input.euler.y -= e.movementX * this.mouseSensitivity;
+            this.input.euler.x -= e.movementY * this.mouseSensitivity;
+            this.input.euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.input.euler.x));
+            this.camera.quaternion.setFromEuler(this.input.euler, 'YXZ');
+        } else if (this.state.isInspecting && !this.state.isPuzzleOpen && !this.state.isSettingsOpen) {
+            if (this.state.isDragging && this.selectedObject && this.mousePrevious) {
+                const dx = e.clientX - this.mousePrevious.x;
+                const dy = e.clientY - this.mousePrevious.y;
+                const xAxis = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+                const yAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+                this.selectedObject.rotateOnWorldAxis(xAxis, dy * 0.01);
+                this.selectedObject.rotateOnWorldAxis(yAxis, dx * 0.01);
+                this.mousePrevious = { x: e.clientX, y: e.clientY };
+            }
+            this.checkInspectHover(e);
+        }
+    },
+    onWheel(e) {
+        if (this.state.isInspecting && this.selectedObject && !this.state.isSettingsOpen) {
+            this.selectedObject.position.z += e.deltaY * 0.001;
+            this.selectedObject.position.z = Math.max(-0.5, Math.min(0.5, this.selectedObject.position.z));
+        }
+    },
+    onResize() {
+        if (this.camera && this.renderer) {
+            this.camera.aspect = window.innerWidth / window.innerHeight;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    },
+
+    // 游戏逻辑
+    toggleFlashlight() {
+        this.state.flashlightOn = !this.state.flashlightOn;
+        this.flashlight.intensity = this.state.flashlightOn ? 1.5 : 0;
+        const dot = document.getElementById('flash-dot');
+        if (dot) dot.className = `flash-dot ${this.state.flashlightOn ? 'on' : ''}`;
+        document.getElementById('slot-flashlight').classList.toggle('active', this.state.flashlightOn);
+        this.audio.playFlashlight();
+    },
+    toggleDiary() {
+        if (this.state.isSettingsOpen) return;
+        this.state.isDiaryOpen = !this.state.isDiaryOpen;
+        const panel = document.getElementById('diary-panel');
+        if (this.state.isDiaryOpen) {
+            panel.classList.add('active');
+            document.exitPointerLock();
+            DiarySystem.render();
+        } else {
+            panel.classList.remove('active');
+            if (this.state.game === 'playing') document.body.requestPointerLock();
+        }
+    },
+    meditate() {
+        if (this.state.noMeditate || this.meditateCooldownTimer > 0) return;
+        const sanityCost = 20 * (this.state.sanityCostMult || 1);
+        const timeGain = 60 * (this.state.meditateMult || 1);
+        if (this.state.sanity < sanityCost) {
+            this.logMessage('理智不足，无法冥想...');
+            this.audio.playFail();
+            return;
+        }
+        this.updateSanity(-sanityCost);
+        this.state.gameTime = Math.min(24 * 60, this.state.gameTime + timeGain);
+        this.audio.playMeditate();
+        this.logMessage('整理思绪...时间流逝了。');
+        this.updateHUD();
+        this.meditateCooldownTimer = 5000 * (this.state.meditateCooldown || 1);
+        document.getElementById('meditate-btn').classList.add('cooldown');
+    },
+    interact() {
+        if (!this.hoveredObject) return;
+        const data = this.hoveredObject.userData.data;
+        if (data.requires && !data.requires.every(id => this.state.memories.has(id))) {
+            this.logMessage("似乎缺少前置线索...");
+            this.audio.playFail();
+            return;
+        }
+        if (!this.state.memories.has(data.id)) {
+            this.state.memories.add(data.id);
+            const sanityCost = data.sanityCost * (this.state.sanityCostMult || 1);
+            const emotionGain = data.emotionGain * (this.state.emotionMult || 1);
+            this.updateSanity(-sanityCost);
+            this.updateEmotion(emotionGain);
+            const notif = document.getElementById('memory-notification');
+            notif.textContent = `获得记忆: ${data.name}`;
+            notif.classList.add('animate');
+            setTimeout(() => notif.classList.remove('animate'), 3000);
+            this.updateCollectionHUD();
+            this.advanceStage(data.narrativeStage);
+            if (data.isSecret) this.state.foundSecret = true;
+            this.checkAchievements();
+            SaveSystem.save(this.state);
+        }
+        this.state.isInspecting = true;
+        this.selectedObject = this.hoveredObject;
+        document.exitPointerLock();
+        this.audio.playInteract();
+        document.getElementById('hud').style.display = 'none';
+        document.getElementById('item-inspect').classList.add('active');
+        this.showNarrative(data.desc);
+        this.origCamPos = this.camera.position.clone();
+        this.origCamRot = this.camera.quaternion.clone();
+        this.ceilingLight.intensity = 0.08;
+        if (this.state.flashlightOn) this.flashlight.target = this.selectedObject;
+        const targetPos = this.selectedObject.position.clone().add(new THREE.Vector3(0, 0.2, 0.6));
+        let alpha = 0;
+        const origPos = this.origCamPos.clone();
+        const animateIn = () => {
+            if (!this.state.isInspecting) return;
+            alpha += 0.05;
+            this.camera.position.lerpVectors(origPos, targetPos, alpha);
+            this.camera.lookAt(this.selectedObject.position);
+            if (alpha < 1) requestAnimationFrame(animateIn);
+        };
+        animateIn();
+    },
+    closeInspect() {
+        if (this.state.isPuzzleOpen) return;
+        this.state.isInspecting = false;
+        document.getElementById('item-inspect').classList.remove('active', 'hotspot-hover');
+        document.getElementById('hud').style.display = 'block';
+        document.getElementById('narrative-text').classList.remove('visible');
+        this.ceilingLight.intensity = 0.35;
+        const tgt = new THREE.Object3D();
+        tgt.position.set(0, 0, -1);
+        this.camera.add(tgt);
+        this.flashlight.target = tgt;
+        let alpha = 0;
+        const currPos = this.camera.position.clone();
+        const currRot = this.camera.quaternion.clone();
+        const origPos = this.origCamPos.clone();
+        const origRot = this.origCamRot.clone();
+        const selObj = this.selectedObject;
+        const animateOut = () => {
+            alpha += 0.05;
+            this.camera.position.lerpVectors(currPos, origPos, alpha);
+            this.camera.quaternion.slerpQuaternions(currRot, origRot, alpha);
+            if (alpha < 1) requestAnimationFrame(animateOut);
+            else {
+                if (selObj) {
+                    selObj.rotation.set(0, 0, 0);
+                    selObj.position.z = selObj.userData.data.pos[2];
+                    if (selObj.userData.data.type === 'special') {
+                        this.scene.remove(selObj);
+                        this.interactables = this.interactables.filter(m => m !== selObj);
+                    }
+                }
+                this.selectedObject = null;
+                document.body.requestPointerLock();
+            }
+        };
+        animateOut();
+    },
+    checkInspectHover(e) {
+        if (!this.selectedObject || this.state.isDragging) return;
+        const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+        this.raycaster.setFromCamera(mouse, this.camera);
+        const intersects = this.raycaster.intersectObject(this.selectedObject, true);
+        const container = document.getElementById('item-inspect');
+        if (intersects.length > 0 && intersects[0].object.userData.isHotspot) {
+            container.classList.add('hotspot-hover');
+        } else {
+            container.classList.remove('hotspot-hover');
+        }
+    },
+    checkInspectInteraction(e) {
+        if (!this.selectedObject) return false;
+        const data = this.selectedObject.userData.data;
+        const puzzleId = data.puzzle;
+        if (!puzzleId) return false;
+        const pConfig = this.PUZZLE_CONFIGS[puzzleId];
+        if (!pConfig || this.state.puzzlesSolved.has(puzzleId)) return false;
+        if (pConfig.type === 'click_hotspot') {
+            const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+            this.raycaster.setFromCamera(mouse, this.camera);
+            const intersects = this.raycaster.intersectObject(this.selectedObject, true);
+            if (intersects.length > 0 && intersects[0].object.userData.id === pConfig.hotspotId) {
+                this.solvePuzzle(puzzleId);
+                return true;
+            }
+        } else {
+            this.openPuzzle(puzzleId, pConfig);
+            return true;
+        }
+        return false;
+    },
+
+    // 谜题系统
+    openPuzzle(puzzleId, config) {
+        this.state.isPuzzleOpen = true;
+        document.exitPointerLock();
+        document.getElementById('puzzle-title').textContent = config.title;
+        document.getElementById('puzzle-desc').innerHTML = config.desc.replace(/\n/g, '<br>');
+        document.getElementById('puzzle-feedback').textContent = '';
+        this.currentPuzzleData = { id: puzzleId, config };
+        const content = document.getElementById('puzzle-content');
+        if (config.type === 'password') this.buildPasswordUI(content, config);
+        else if (config.type === 'sorting') this.buildSortingUI(content, config);
+        document.getElementById('puzzle-panel').classList.add('active');
+    },
+    buildPasswordUI(container, config) {
+        const len = config.answer.length;
+        let html = '<div class="puzzle-input-row">';
+        for (let i = 0; i < len; i++) {
+            html += `<input type="text" class="puzzle-digit" maxlength="1" data-index="${i}">`;
+        }
+        html += '</div><div style="text-align:center"><button class="puzzle-btn confirm" id="puzzle-submit">确认 / CONFIRM</button></div>';
+        container.innerHTML = html;
+
+        const digits = container.querySelectorAll('.puzzle-digit');
+        digits[0].focus();
+        digits.forEach((digit, idx) => {
+            digit.addEventListener('input', (e) => {
+                if (e.target.value && idx < len - 1) digits[idx + 1].focus();
+            });
+            digit.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && idx > 0) digits[idx - 1].focus();
+            });
+        });
+
+        document.getElementById('puzzle-submit').addEventListener('click', () => {
+            const answer = Array.from(digits).map(d => d.value).join('');
+            if (answer === config.answer) {
+                this.solvePuzzle(this.currentPuzzleData.id);
+            } else {
+                document.getElementById('puzzle-feedback').textContent = '密码错误...';
+                this.audio.playFail();
+                if (!this.state.puzzleSafe) {
+                    this.updateSanity(-5 * (this.state.puzzlePenalty || 1));
+                }
+            }
+        });
+    },
+    buildSortingUI(container, config) {
+        const shuffled = [...config.items].sort(() => Math.random() - 0.5);
+        let html = '<div class="puzzle-slots" id="sort-slots">';
+        config.items.forEach((_, i) => {
+            html += `<div class="puzzle-slot" data-slot="${i}">${i + 1}</div>`;
+        });
+        html += '</div><div class="puzzle-options" id="sort-options">';
+        shuffled.forEach((item, i) => {
+            html += `<div class="puzzle-option" data-order="${item.order}" data-index="${i}">${item.text}</div>`;
+        });
+        html += '</div><div style="text-align:center"><button class="puzzle-btn confirm" id="puzzle-submit">确认 / CONFIRM</button></div>';
+        container.innerHTML = html;
+
+        let currentSlot = 0;
+        const slots = container.querySelectorAll('.puzzle-slot');
+        const options = container.querySelectorAll('.puzzle-option');
+
+        options.forEach(opt => {
+            opt.addEventListener('click', () => {
+                if (opt.classList.contains('used') || currentSlot >= slots.length) return;
+                slots[currentSlot].textContent = opt.textContent;
+                slots[currentSlot].classList.add('filled');
+                slots[currentSlot].dataset.order = opt.dataset.order;
+                opt.classList.add('used');
+                currentSlot++;
+            });
+        });
+
+        document.getElementById('puzzle-submit').addEventListener('click', () => {
+            const orders = Array.from(slots).map(s => parseInt(s.dataset.order));
+            const correct = orders.every((o, i) => o === i + 1);
+            if (correct) {
+                this.solvePuzzle(this.currentPuzzleData.id);
+            } else {
+                document.getElementById('puzzle-feedback').textContent = '顺序不正确...';
+                this.audio.playFail();
+                if (!this.state.puzzleSafe) {
+                    this.updateSanity(-5 * (this.state.puzzlePenalty || 1));
+                }
+            }
+        });
+    },
+    solvePuzzle(puzzleId) {
+        this.state.puzzlesSolved.add(puzzleId);
+        const config = this.PUZZLE_CONFIGS[puzzleId];
+        if (config.reward) {
+            this.updateEmotion(config.reward.emotion);
+            this.logMessage(config.reward.logMsg);
+            this.showNarrative(config.reward.narrative);
+            if (config.reward.diaryId) {
+                DiarySystem.unlock(config.reward.diaryId);
+            }
+        }
+        this.audio.playUnlock();
+        this.closePuzzle();
+        this.checkAchievements();
+        SaveSystem.save(this.state);
+    },
+    closePuzzle() {
+        this.state.isPuzzleOpen = false;
+        document.getElementById('puzzle-panel').classList.remove('active');
+        if (this.state.isInspecting) document.exitPointerLock();
+        else document.body.requestPointerLock();
+    },
+
+    // HUD更新
+    updateHUD() {
+        const sanity = Math.max(0, Math.min(100, this.state.sanity));
+        const emotion = Math.max(0, this.state.emotion);
+        document.getElementById('sanity-value').textContent = Math.round(sanity) + '%';
+        document.getElementById('sanity-fill').style.width = sanity + '%';
+        document.getElementById('emotion-value').textContent = Math.round(emotion);
+        document.getElementById('emotion-fill').style.width = Math.min(100, emotion) + '%';
+
+        const hours = Math.floor(this.state.gameTime / 60);
+        const mins = Math.floor(this.state.gameTime % 60);
+        document.getElementById('time-display').textContent = `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+
+        const sanityContainer = document.getElementById('sanity-container');
+        if (sanity < 20) sanityContainer.classList.add('critical-sanity');
+        else sanityContainer.classList.remove('critical-sanity');
+
+        if (sanity < 30) document.body.classList.add('low-sanity-mode');
+        else document.body.classList.remove('low-sanity-mode');
+
+        if (!this.state.noMeditate && !document.getElementById('meditate-btn').classList.contains('visible')) {
+            document.getElementById('meditate-btn').classList.add('visible');
+        }
+    },
+    updateCollectionHUD() {
+        const total = Object.keys(this.INTERACTABLES_DATA).length;
+        const collected = this.state.memories.size;
+        document.getElementById('collection-count').textContent = `${collected}/${total}`;
+        document.getElementById('collection-fill').style.width = (collected / total * 100) + '%';
+    },
+    advanceStage(stage) {
+        if (stage > this.state.narrativeStage) {
+            this.state.narrativeStage = stage;
+            document.querySelectorAll('.progress-stage').forEach(el => {
+                const s = parseInt(el.dataset.stage);
+                el.classList.remove('active', 'completed');
+                if (s < stage) el.classList.add('completed');
+                else if (s === stage) el.classList.add('active');
+            });
+        }
+    },
+    updateSanity(delta) {
+        this.state.sanity = Math.max(0, Math.min(100, this.state.sanity + delta));
+        this.updateHUD();
+        this.audio.updateHeartbeat(this.state.sanity);
+        if (this.state.sanity <= 0) this.triggerEnding('madness');
+    },
+    updateEmotion(delta) {
+        this.state.emotion += delta;
+        this.updateHUD();
+    },
+    showNarrative(text) {
+        const el = document.getElementById('narrative-text');
+        el.textContent = text;
+        el.classList.add('visible');
+    },
+    logMessage(text, type = '') {
+        const log = document.getElementById('message-log');
+        const msg = document.createElement('div');
+        msg.className = `message ${type}`;
+        msg.textContent = text;
+        log.appendChild(msg);
+        if (log.children.length > 5) log.removeChild(log.firstChild);
+        setTimeout(() => { if (msg.parentNode) msg.remove(); }, 8000);
+    },
+    showNotification(text, type = 'info', duration = 3000) {
+        const notif = document.createElement('div');
+        notif.className = `notification ${type}`;
+        notif.textContent = text;
+        document.body.appendChild(notif);
+        setTimeout(() => {
+            notif.classList.add('fade-out');
+            setTimeout(() => notif.remove(), 300);
+        }, duration);
+    },
+
+    // 成就检查
+    checkAchievements() {
+        const memoryCount = this.state.memories.size;
+        if (memoryCount === 1 && RogueData.addAchievement('first_memory')) {
+            this.showNotification('成就解锁：初次回忆', 'achievement');
+        }
+        if (memoryCount >= 10 && RogueData.addAchievement('memory_collector')) {
+            this.showNotification('成就解锁：记忆收集者', 'achievement');
+        }
+        if (this.state.puzzlesSolved.size >= 3 && RogueData.addAchievement('puzzle_master')) {
+            this.showNotification('成就解锁：解谜大师', 'achievement');
+        }
+        if (this.state.sanity <= 20 && this.state.sanity > 0 && RogueData.addAchievement('survivor')) {
+            this.showNotification('成就解锁：幸存者', 'achievement');
+        }
+        if (this.state.foundSecret && RogueData.addAchievement('secret_finder')) {
+            this.showNotification('成就解锁：秘密发现者', 'achievement');
+        }
+        this.updateMenuStats();
+    },
+
+    // 结局系统
+    triggerEnding(type) {
+        const endings = {
+            madness: { title: '疯狂', quote: '理智的堤坝终被冲垮...', desc: '你在无尽的轮回中迷失了自我，理智的光芒彻底熄灭。' },
+            forget: { title: '遗忘', quote: '有些回忆，注定要被时间掩埋...', desc: '你选择了遗忘，带着空洞的心离开了这个充满回忆的地方。' },
+            truth: { title: '真相', quote: '真相有时比谎言更残忍...', desc: '你揭开了所有的秘密，却发现真相远比想象中更加痛苦。' },
+            love: { title: '永恒之爱', quote: '爱是唯一能穿越轮回的力量...', desc: '你理解了她的爱，带着这份爱继续前行。' }
+        };
+        const ending = endings[type] || endings.forget;
+        RogueData.addEnding(type);
+        document.getElementById('hud').style.display = 'none';
+        document.getElementById('ending-badge').textContent = `结局：${ending.title}`;
+        document.getElementById('ending-title').textContent = ending.title;
+        document.getElementById('ending-quote').textContent = ending.quote;
+        document.getElementById('ending-description').textContent = ending.desc;
+        const runTime = Math.floor((Date.now() - this.state.runStartTime) / 1000);
+        const mins = Math.floor(runTime / 60);
+        const secs = runTime % 60;
+        document.getElementById('ending-stats').innerHTML = `
+            <div class="stat-item"><div class="stat-value">${this.state.memories.size}</div><div class="run-stat-label">收集记忆</div></div>
+            <div class="stat-item"><div class="stat-value">${this.state.puzzlesSolved.size}</div><div class="run-stat-label">解开谜题</div></div>
+            <div class="stat-item"><div class="stat-value">${Math.round(this.state.sanity)}%</div><div class="run-stat-label">剩余理智</div></div>
+            <div class="stat-item"><div class="stat-value">${mins}:${secs.toString().padStart(2, '0')}</div><div class="run-stat-label">游戏时间</div></div>
+        `;
+        document.getElementById('gameover-screen').classList.add('active');
+        SaveSystem.clear();
+        this.updateMenuStats();
+    },
+    showRunStats() {
+        document.getElementById('gameover-screen').classList.remove('active');
+        const runTime = Math.floor((Date.now() - this.state.runStartTime) / 1000);
+        const mins = Math.floor(runTime / 60);
+        const secs = runTime % 60;
+        const score = this.state.memories.size * 100 + this.state.puzzlesSolved.size * 200 + Math.round(this.state.sanity) * 5 + Math.round(this.state.emotion);
+        document.getElementById('run-memories').textContent = this.state.memories.size;
+        document.getElementById('run-puzzles').textContent = this.state.puzzlesSolved.size;
+        document.getElementById('run-sanity').textContent = Math.round(this.state.sanity) + '%';
+        document.getElementById('run-emotion').textContent = Math.round(this.state.emotion);
+        document.getElementById('run-time').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+        document.getElementById('run-score').textContent = score;
+        document.getElementById('run-stats-panel').classList.add('active');
+    },
+    returnToMenu() {
+        document.getElementById('run-stats-panel').classList.remove('active');
+        document.getElementById('gameover-screen').classList.remove('active');
+        document.getElementById('hud').style.display = 'none';
+        document.getElementById('menu-screen').classList.add('active');
+        this.state.game = 'menu';
+        this.updateMenuStats();
+    },
+
+    // 游戏循环
+    gameLoop(time) {
+        requestAnimationFrame((t) => this.gameLoop(t));
+        const dt = Math.min((time - this.lastTime) / 1000, 0.1);
+        this.lastTime = time;
+
+        // 性能监控
+        this.perfMonitor.frameCount++;
+        if (time - this.perfMonitor.lastTime >= 1000) {
+            this.perfMonitor.fps = this.perfMonitor.frameCount;
+            this.perfMonitor.frameCount = 0;
+            this.perfMonitor.lastTime = time;
+            if (this.perfMonitor.visible) {
+                document.getElementById('perf-monitor').textContent = `FPS: ${this.perfMonitor.fps}`;
+            }
+        }
+
+        if (this.state.game !== 'playing') {
+            this.renderer.render(this.scene, this.camera);
+            return;
+        }
+
+        // 冷却计时器
+        if (this.meditateCooldownTimer > 0) {
+            this.meditateCooldownTimer -= dt * 1000;
+            if (this.meditateCooldownTimer <= 0) {
+                document.getElementById('meditate-btn').classList.remove('cooldown');
+            }
+        }
+
+        // 自动保存
+        this.autoSaveTimer += dt;
+        if (this.autoSaveTimer >= 30) {
+            this.autoSaveTimer = 0;
+            SaveSystem.save(this.state);
+        }
+
+        // 移动
+        if (!this.state.isInspecting && !this.state.isPuzzleOpen && !this.state.isDiaryOpen && !this.state.isSettingsOpen) {
+            const speed = 3 * (this.state.speedMult || 1) * (this.input.sprint ? 1.5 : 1);
+            const moveDir = new THREE.Vector3();
+            if (this.input.fw) moveDir.z -= 1;
+            if (this.input.bw) moveDir.z += 1;
+            if (this.input.l) moveDir.x -= 1;
+            if (this.input.r) moveDir.x += 1;
+            if (moveDir.length() > 0) {
+                moveDir.normalize();
+                moveDir.applyQuaternion(this.camera.quaternion);
+                moveDir.y = 0;
+                moveDir.normalize();
+                this.camera.position.add(moveDir.multiplyScalar(speed * dt));
+                this.audio.playFootstep('wood', this.input.sprint);
+            }
+            // 边界限制
+            this.camera.position.x = Math.max(-6.5, Math.min(6.5, this.camera.position.x));
+            this.camera.position.z = Math.max(-6.5, Math.min(6.5, this.camera.position.z));
+        }
+
+        // 时间流逝
+        this.state.gameTime += dt * (this.state.timeMult || 1) * 0.5;
+        if (this.state.gameTime >= 24 * 60) this.triggerEnding('forget');
+
+        // 理智自然下降
+        this.updateSanity(-dt * 0.3 * (this.state.sanityDrainMult || 1));
+
+        // 威胁系统
+        this.threat.update(dt, this.state.sanity);
+
+        // 射线检测
+        if (!this.state.isInspecting && !this.state.isPuzzleOpen) {
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+            const intersects = raycaster.intersectObjects(this.interactables, true);
+            const prompt = document.getElementById('interaction-prompt');
+            const crosshair = document.getElementById('crosshair');
+            if (intersects.length > 0 && intersects[0].distance < 3) {
+                let obj = intersects[0].object;
+                while (obj.parent && !obj.userData.interactable) obj = obj.parent;
+                if (obj.userData.interactable) {
+                    this.hoveredObject = obj;
+                    const data = obj.userData.data;
+                    if (!this.state.memories.has(data.id)) {
+                        prompt.innerHTML = `<span class="key-hint">E</span> 检视 ${data.name}`;
+                        prompt.style.opacity = '1';
+                        crosshair.classList.add('active');
+                    } else {
+                        prompt.innerHTML = `<span class="key-hint">E</span> 再次查看`;
+                        prompt.style.opacity = '0.7';
+                        crosshair.classList.remove('active');
+                    }
+                } else {
+                    this.hoveredObject = null;
+                    prompt.style.opacity = '0';
+                    crosshair.classList.remove('active');
+                }
+            } else {
+                this.hoveredObject = null;
+                prompt.style.opacity = '0';
+                crosshair.classList.remove('active');
+            }
+        }
+
+        // 粒子动画
+        if (this.particles) {
+            const positions = this.particles.geometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i + 1] += dt * 0.05;
+                if (positions[i + 1] > 4) positions[i + 1] = 0;
+            }
+            this.particles.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // 物品浮动动画
+        this.interactables.forEach(item => {
+            if (item.userData.floatOffset !== undefined) {
+                item.position.y = item.userData.originalY + Math.sin(time * 0.001 + item.userData.floatOffset) * 0.02;
+            }
+        });
+
+        // HUD更新
+        this.updateHUD();
+
+        // 渲染
+        this.renderer.render(this.scene, this.camera);
+    },
+
+    // 模拟加载
+    simulateLoading() {
+        const progress = document.getElementById('loading-progress');
+        let p = 0;
+        const interval = setInterval(() => {
+            p += Math.random() * 15 + 5;
+            if (p >= 100) {
+                p = 100;
+                clearInterval(interval);
+                setTimeout(() => {
+                    document.getElementById('loading-screen').classList.remove('active');
+                    document.getElementById('warning-screen').classList.add('active');
+                }, 500);
+            }
+            progress.style.width = p + '%';
+        }, 200);
+    }
+};
+
+// 启动游戏
+window.addEventListener('DOMContentLoaded', () => {
+    GameEngine.init();
+});
+</script>
+</body>
+</html>
