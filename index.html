@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>昨日回响：肉鸽轮回 </title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>昨日回响 · 雨夜记忆</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="art-direction.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Share+Tech+Mono&family=Cinzel:wght@400;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -271,6 +271,7 @@
             .run-stats-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
+    <link rel="stylesheet" href="art-direction.css">
 </head>
 <body>
 <div id="game-container" class="scanlines crt-curve vignette">
@@ -284,53 +285,60 @@
 
     <div id="ui-overlay">
         <div id="loading-screen" class="screen active">
-            <div class="loading-text">INITIALIZING ROGUE EDITION ...</div>
+            <div class="loading-mark">昨日回响</div>
+            <div class="loading-text">正在唤醒一间被时间遗忘的咖啡馆</div>
             <div class="loading-bar"><div class="loading-progress" id="loading-progress"></div></div>
         </div>
 
         <div id="warning-screen" class="screen">
-            <div class="warning-title">/// WARNING ///</div>
+            <div class="section-eyebrow">BEFORE YOU RETURN</div>
+            <div class="warning-title">有些回忆，仍在等你。</div>
             <div class="warning-text">
                 本游戏包含心理恐怖元素、动态光影及环境解谜机制。<br>
                 建议佩戴耳机以获得最佳音频体验。<br><br>
-                <span style="color:#8b4513"> 特性：</span><br>
-                • 更流畅的游戏体验<br>
-                • 修复所有已知BUG<br>
-                • 全新肉鸽轮回系统<br>
-                • 祝福与诅咒系统<br>
-                • 自适应难度系统<br>
-                • 成就系统
+                这里有关于失去、悲伤与心理困境的故事。<br>
+                若感到不适，请随时停下，照顾好自己。<br><br>
+                <span class="warning-note">桌面游玩 · 鼠标与键盘 · 建议佩戴耳机</span>
             </div>
             <button class="warning-button" id="enter-btn">进入轮回 / ENTER</button>
         </div>
 
         <div id="menu-screen" class="screen">
-            <div class="menu-title">昨日回响</div>
+            <div class="menu-topline"><span>E / Y</span><span>一场关于记忆与失去的旅程</span></div>
+            <div class="menu-content">
+            <div class="section-eyebrow"><span class="eyebrow-line"></span> A PLACE THAT REMEMBERS</div>
+            <h1 class="menu-title">昨日<br>回响<span class="title-period">。</span></h1>
             <div class="menu-subtitle">ECHOES OF YESTERDAY</div>
-            <div class="rogue-badge">/// ROGUE EDITION  ///</div>
+            <p class="menu-description">推开那扇门，雨声仍和从前一样。<br>只是这一次，你要找回的不止是回忆。</p>
+            <div class="rogue-badge">雨夜记忆 / ROGUE EDITION</div>
+            <div class="menu-options">
+                <button class="menu-option menu-primary" id="start-btn"><span>重返咖啡馆<small>BEGIN A NEW MEMORY</small></span><span class="menu-arrow">↗</span></button>
+                <button class="menu-option" id="continue-btn"><span>续写回忆</span><small>CONTINUE</small></button>
+                <div class="menu-secondary">
+                    <button class="menu-option" id="settings-btn">设置</button>
+                    <button class="menu-option" id="achievements-btn">成就</button>
+                    <button class="menu-option" id="controls-btn">操作指南</button>
+                </div>
+            </div>
             <div class="rogue-stats" id="menu-rogue-stats">
                 <div class="rogue-stat"><div class="rogue-stat-value" id="stat-total-runs">0</div><div class="rogue-stat-label">轮回次数</div></div>
                 <div class="rogue-stat"><div class="rogue-stat-value" id="stat-endings">0/12</div><div class="rogue-stat-label">结局收集</div></div>
                 <div class="rogue-stat"><div class="rogue-stat-value" id="stat-unlocks">0</div><div class="rogue-stat-label">解锁内容</div></div>
                 <div class="rogue-stat"><div class="rogue-stat-value" id="stat-achievements">0</div><div class="rogue-stat-label">成就</div></div>
             </div>
-            <div class="menu-options">
-                <div class="menu-option" id="start-btn">开始轮回 / NEW RUN</div>
-                <div class="menu-option" id="continue-btn">继续轮回 / CONTINUE</div>
-                <div class="menu-option" id="settings-btn">轮回设置 / SETTINGS</div>
-                <div class="menu-option" id="achievements-btn">成就系统 / ACHIEVEMENTS</div>
-                <div class="menu-option" id="controls-btn">操作说明 / CONTROLS</div>
             </div>
+            <div class="scene-caption"><span class="section-eyebrow">CAFÉ DES SOUVENIRS / 19:00</span><p>雨还没停。<br>她却再也没有回来。</p></div>
+            <div class="menu-footer"><span><span class="sound-wave">▂ ▅ ▃ ▆ ▂</span> 为耳机中的雨夜而作</span><span>十八件遗物 · 无数次重逢</span><span>ART EDITION — 02</span></div>
         </div>
 
         <div id="hud">
             <div class="rogue-hud">
                 <div class="rogue-badge-hud" id="run-badge">轮回 #1</div>
-                <div class="curse-indicator" id="curse-indicator">❌ 诅咒生效中</div>
-                <div class="blessing-indicator" id="blessing-indicator">✨ 祝福庇佑中</div>
+                <div class="curse-indicator" id="curse-indicator">◇ 诅咒生效中</div>
+                <div class="blessing-indicator" id="blessing-indicator">✧ 祝福庇佑中</div>
             </div>
             <div class="hud-top">
-                <div style="display:flex; gap:20px;">
+                <div class="hud-resources">
                     <div class="resource-bar" id="sanity-container">
                         <div class="resource-label"><span>SANITY [理智]</span><span id="sanity-value">100%</span></div>
                         <div class="resource-track"><div class="resource-fill sanity-fill" id="sanity-fill" style="width:100%"></div></div>
@@ -348,13 +356,13 @@
             <div class="memory-notification" id="memory-notification">记忆碎片已收集</div>
             <div id="message-log"></div>
             <div class="quick-bar">
-                <div class="quick-slot" id="slot-diary">📖<span class="key-hint">J</span></div>
-                <div class="quick-slot active" id="slot-flashlight">🔦<span class="key-hint">F</span></div>
+                <button class="quick-slot" id="slot-diary" aria-label="打开回忆日记"><span class="line-icon icon-book"></span><span class="key-hint">J</span></button>
+                <button class="quick-slot active" id="slot-flashlight" aria-label="开关手电筒"><span class="line-icon icon-light"></span><span class="key-hint">F</span></button>
             </div>
             <button id="meditate-btn"><span class="key-hint">M</span> 整理思绪 (-20理智 +1小时)</button>
         </div>
 
-        <div id="item-inspect"><div class="inspect-hint">[鼠标左键拖拽] 旋转寻找机关或线索 | [E] 收起 | [滚轮] 缩放</div></div>
+        <div id="item-inspect"><div class="inspect-heading"><span class="section-eyebrow">MEMORY ARCHIVE</span><h2 id="inspect-name"></h2><span id="inspect-number"></span></div><div class="inspect-hint">拖拽旋转 · 滚轮缩放 · <span class="key-hint">E</span> 收起</div></div>
 
         <div id="puzzle-panel">
             <div class="puzzle-title" id="puzzle-title"></div>
@@ -365,12 +373,13 @@
         </div>
 
         <div id="diary-panel">
-            <div class="diary-header"><div class="diary-title">📖 回忆日记</div><button class="diary-close" id="diary-close-btn">关闭 [J]</button></div>
+            <div class="diary-header"><div class="diary-title"><small>THE THINGS WE LEFT BEHIND</small>回忆日记</div><button class="diary-close" id="diary-close-btn">合上 [J]</button></div>
             <div class="diary-content" id="diary-content"></div>
         </div>
 
         <div id="settings-panel">
-            <div class="settings-title">/// SETTINGS ///</div>
+            <div class="section-eyebrow">MAKE YOURSELF AT HOME</div>
+            <div class="settings-title">调整这个雨夜</div>
             <div class="setting-item"><span class="setting-label">🔊 主音量</span><span class="setting-value" id="vol-main-value">50%</span><input type="range" class="setting-slider" id="vol-main" min="0" max="100" value="50"></div>
             <div class="setting-item"><span class="setting-label">🎵 音乐</span><span class="setting-value" id="vol-music-value">60%</span><input type="range" class="setting-slider" id="vol-music" min="0" max="100" value="60"></div>
             <div class="setting-item"><span class="setting-label">🔔 音效</span><span class="setting-value" id="vol-sfx-value">80%</span><input type="range" class="setting-slider" id="vol-sfx" min="0" max="100" value="80"></div>
@@ -380,7 +389,8 @@
         </div>
 
         <div id="rogue-choice-panel">
-            <div class="rogue-choice-title">轮回之力</div>
+            <div class="section-eyebrow">EVERY RETURN IS DIFFERENT</div>
+            <div class="rogue-choice-title">带一份念想，再次启程。</div>
             <div class="rogue-choice-subtitle">选择一项祝福或诅咒，它将影响本轮轮回</div>
             <div class="rogue-choices" id="rogue-choices"></div>
         </div>
@@ -1117,13 +1127,22 @@ const GameEngine = {
         choices.forEach(choice => {
             const card = document.createElement('div');
             card.className = `rogue-choice-card ${choice.type}`;
+            card.setAttribute('role', 'button');
+            card.tabIndex = 0;
+            card.setAttribute('aria-label', `${choice.name}：${choice.desc}`);
             card.innerHTML = `
-                <div class="rogue-choice-icon">${choice.icon}</div>
+                <div class="rogue-choice-icon" aria-hidden="true">${choice.type === 'blessing' ? '✧' : choice.type === 'curse' ? '◇' : '⟡'}</div>
                 <div class="rogue-choice-name">${choice.name}</div>
                 <div class="rogue-choice-desc">${choice.desc}</div>
                 <div class="rogue-choice-type ${choice.type}">${choice.type === 'blessing' ? '祝福' : choice.type === 'curse' ? '诅咒' : '特殊'}</div>
             `;
             card.addEventListener('click', () => this.selectRogueChoice(choice.id));
+            card.addEventListener('keydown', event => {
+                if (event.code === 'Enter' || event.code === 'Space') {
+                    event.preventDefault();
+                    this.selectRogueChoice(choice.id);
+                }
+            });
             container.appendChild(card);
         });
         document.getElementById('rogue-choice-panel').classList.add('active');
@@ -1161,12 +1180,14 @@ const GameEngine = {
     },
     startPlaying() {
         this.state.game = 'playing';
+        ArtDirection.playCamera(this);
         this.state.runStartTime = Date.now();
         this.audio.init();
         this.audio.resume();
         document.getElementById('hud').style.display = 'block';
         document.body.requestPointerLock();
         this.updateHUD();
+        this.updateCollectionHUD();
         this.logMessage("轮回开始。按 [F] 开启手电筒...");
         this.logMessage("检视【音乐盒】，寻找底部的机关。");
         SaveSystem.save(this.state);
@@ -1215,15 +1236,17 @@ const GameEngine = {
         this.camera.add(this.flashlight.target);
 
         this.buildEnvironment();
-        this.buildDecorations();
         this.createParticles();
         this.populateItems();
+        ArtDirection.configure(this);
 
         this.lastTime = performance.now();
         requestAnimationFrame((t) => this.gameLoop(t));
     },
 
     buildEnvironment() {
+        ArtDirection.buildEnvironment(this);
+        return;
         // 地板
         const floorMat = new THREE.MeshStandardMaterial({ map: TextureGen.createWood(), roughness: 0.8, metalness: 0.1 });
         const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), floorMat);
@@ -1432,6 +1455,8 @@ const GameEngine = {
     },
 
     createParticles() {
+        ArtDirection.createDust(this);
+        return;
         const geo = new THREE.BufferGeometry();
         const pos = [];
         for (let i = 0; i < 500; i++) {
@@ -1496,8 +1521,9 @@ const GameEngine = {
                 mesh.castShadow = true;
             }
 
+            mesh = ArtDirection.item(data);
             mesh.position.set(...data.pos);
-            mesh.userData = { interactable: true, data: data, originalY: data.pos[1], floatOffset: Math.random() * Math.PI * 2 };
+            mesh.userData = { interactable: true, data: data, originalY: data.pos[1] };
             this.scene.add(mesh);
             this.interactables.push(mesh);
             this.entitiesMap.set(data.id, mesh);
@@ -1657,10 +1683,13 @@ const GameEngine = {
         this.audio.playInteract();
         document.getElementById('hud').style.display = 'none';
         document.getElementById('item-inspect').classList.add('active');
+        document.getElementById('inspect-name').textContent = data.name;
+        document.getElementById('inspect-number').textContent = `ARCHIVE ${String(Object.values(this.INTERACTABLES_DATA).indexOf(data) + 1).padStart(2, '0')} / 18`;
         this.showNarrative(data.desc);
         this.origCamPos = this.camera.position.clone();
         this.origCamRot = this.camera.quaternion.clone();
         this.ceilingLight.intensity = 0.08;
+        this.inspectLight.intensity = .8;
         if (this.state.flashlightOn) this.flashlight.target = this.selectedObject;
         const targetPos = this.selectedObject.position.clone().add(new THREE.Vector3(0, 0.2, 0.6));
         let alpha = 0;
@@ -1680,7 +1709,8 @@ const GameEngine = {
         document.getElementById('item-inspect').classList.remove('active', 'hotspot-hover');
         document.getElementById('hud').style.display = 'block';
         document.getElementById('narrative-text').classList.remove('visible');
-        this.ceilingLight.intensity = 0.35;
+        this.ceilingLight.intensity = 0.42;
+        this.inspectLight.intensity = 0;
         const tgt = new THREE.Object3D();
         tgt.position.set(0, 0, -1);
         this.camera.add(tgt);
@@ -2001,6 +2031,7 @@ const GameEngine = {
         document.getElementById('hud').style.display = 'none';
         document.getElementById('menu-screen').classList.add('active');
         this.state.game = 'menu';
+        ArtDirection.menuCamera(this);
         this.updateMenuStats();
     },
 
@@ -2009,6 +2040,7 @@ const GameEngine = {
         requestAnimationFrame((t) => this.gameLoop(t));
         const dt = Math.min((time - this.lastTime) / 1000, 0.1);
         this.lastTime = time;
+        ArtDirection.update(this, time, dt);
 
         // 性能监控
         this.perfMonitor.frameCount++;
